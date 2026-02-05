@@ -2996,7 +2996,7 @@
             <div style="display:flex;align-items:center;gap:12px">
                ${fromCache ? '<span style="color:#888;font-size:12px">⚡ Instant</span>' : '<span style="color:#4ade80;font-size:12px">✨ Fresh</span>'}
                <input type="text" class="search-input" style="width:200px;margin:0" placeholder="Search user..." oninput="filterUserTable(this.value)">
-               <button class="btn-sm" style="background:#22c55e;color:white;border:none" onclick="openModalAddStudent()">
+               <button class="btn-sm" style="background:#22c55e;color:white;border:none" onclick="openModalAddUserDirect()">
                   <i data-lucide="user-plus" style="width:14px;margin-right:4px"></i> Add
                </button>
                <button class="btn-sm btn-red" onclick="loadAdminUsers(true)">🔄 Refresh</button>
@@ -6466,6 +6466,80 @@
     })();
   </script>
 
+  <!-- MODAL ADD USER DIRECT -->
+  <div class="profile-modal-overlay" id="modalAddUserDirect"
+    onclick="if(event.target===this) closeModalAddUserDirect()">
+    <div class="profile-modal" style="max-width:400px">
+      <div style="padding:24px;border-bottom:1px solid #333">
+        <h3 style="font-size:18px;font-weight:700;color:var(--text-primary)">Thêm Học Viên Mới</h3>
+      </div>
+      <form id="formAddUserDirect" style="padding:24px">
+        <div class="form-group" style="margin-bottom:16px">
+          <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--text-muted)">Email <span
+              style="color:red">*</span></label>
+          <input type="email" id="newUserDirectEmail" class="form-input" required placeholder="nhapemail@gmail.com"
+            style="width:100%;padding:10px;background:var(--bg-800);border:1px solid var(--border);color:var(--text-primary);border-radius:6px">
+        </div>
+        <div class="form-group" style="margin-bottom:24px">
+          <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--text-muted)">Họ và tên</label>
+          <input type="text" id="newUserDirectName" class="form-input" placeholder="Nguyễn Văn A"
+            style="width:100%;padding:10px;background:var(--bg-800);border:1px solid var(--border);color:var(--text-primary);border-radius:6px">
+        </div>
+        <div id="addUserDirectMsg" style="margin-bottom:16px"></div>
+        <div style="display:flex;justify-content:flex-end;gap:12px">
+          <button type="button" class="btn" onclick="closeModalAddUserDirect()"
+            style="background:var(--bg-700);color:var(--text-primary);border:1px solid var(--border)">Hủy</button>
+          <button type="submit" class="btn btn-primary" style="background:var(--brand-red);border:none;color:white">Thêm
+            ngay</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // ========== ADD USER DIRECT LOGIC ==========
+    function openModalAddUserDirect() {
+      document.getElementById('modalAddUserDirect').classList.add('active');
+      document.getElementById('formAddUserDirect').reset();
+      document.getElementById('addUserDirectMsg').innerHTML = '';
+    }
+
+    function closeModalAddUserDirect() {
+      document.getElementById('modalAddUserDirect').classList.remove('active');
+    }
+
+    document.getElementById('formAddUserDirect').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const email = document.getElementById('newUserDirectEmail').value.trim();
+      const name = document.getElementById('newUserDirectName').value.trim();
+      const msgDiv = document.getElementById('addUserDirectMsg');
+
+      if (!email) {
+        msgDiv.innerHTML = '<div class="alert alert-error">Vui lòng nhập Email!</div>';
+        return;
+      }
+
+      msgDiv.innerHTML = '<div class="alert alert-success">⏳ Đang xử lý...</div>';
+
+      try {
+        // Reuse addStudentToSheet API
+        const result = await callAPI('addStudentToSheet', { email, name });
+        if (result.success) {
+          msgDiv.innerHTML = '<div class="alert alert-success">✅ ' + result.message + '</div>';
+          setTimeout(() => {
+            closeModalAddUserDirect();
+            // Reset cache to reload new user
+            localStorage.removeItem('lms_users_cache');
+            loadAdminUsers(true);
+          }, 1500);
+        } else {
+          msgDiv.innerHTML = '<div class="alert alert-error">' + result.message + '</div>';
+        }
+      } catch (error) {
+        msgDiv.innerHTML = '<div class="alert alert-error">Lỗi: ' + error + '</div>';
+      }
+    });
+  </script>
 </body>
 
 </html>
