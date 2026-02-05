@@ -6499,6 +6499,7 @@
   <script>
     // ========== ADD USER DIRECT LOGIC ==========
     function openModalAddUserDirect() {
+      console.log('🔍 [AddUserDirect] Opening modal...');
       document.getElementById('modalAddUserDirect').classList.add('active');
       document.getElementById('formAddUserDirect').reset();
       document.getElementById('addUserDirectMsg').innerHTML = '';
@@ -6514,6 +6515,8 @@
       const name = document.getElementById('newUserDirectName').value.trim();
       const msgDiv = document.getElementById('addUserDirectMsg');
 
+      console.log('🔍 [AddUserDirect] Submitting form:', { email, name });
+
       if (!email) {
         msgDiv.innerHTML = '<div class="alert alert-error">Vui lòng nhập Email!</div>';
         return;
@@ -6524,6 +6527,7 @@
       try {
         // Reuse addStudentToSheet API
         const result = await callAPI('addStudentToSheet', { email, name });
+        console.log('✅ [AddUserDirect] Result:', result);
         if (result.success) {
           msgDiv.innerHTML = '<div class="alert alert-success">✅ ' + result.message + '</div>';
           setTimeout(() => {
@@ -6536,6 +6540,7 @@
           msgDiv.innerHTML = '<div class="alert alert-error">' + result.message + '</div>';
         }
       } catch (error) {
+        console.error('❌ [AddUserDirect] Error:', error);
         msgDiv.innerHTML = '<div class="alert alert-error">Lỗi: ' + error + '</div>';
       }
     });
