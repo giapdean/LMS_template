@@ -22,8 +22,8 @@ Workflow này sẽ tự động:
 
 ## 3. Deploy to GitHub (Frontend)
 // turbo
-4. Run `git add .` in `.`
+4. Run `cmd /c "if not exist .git (git init && git remote add origin https://github.com/giapdean/LMS_template.git)"` in `.`
 // turbo
-5. Run `git commit -m "Auto deploy via /push"` in `.`
+5. Run `cmd /c "git add . && (git diff --staged --quiet || git commit -m \"Auto deploy via /push\")"` in `.`
 // turbo
-6. Run `git push` in `.`
+6. Run `cmd /c "git push -u origin master -f"` in `.`
