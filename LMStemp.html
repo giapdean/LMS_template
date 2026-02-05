@@ -1,0 +1,2155 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LMS - Learning Management System</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ================= STYLE MỚI THEO PHONG CÁCH CYBERPUNK RED ================= */
+
+    :root {
+      --brand-dark: #050505;
+      --brand-card: rgba(18, 18, 18, 0.8);
+      --brand-red: #DC2626;
+      --brand-orange: #EA580C;
+      --text-light: #e0e6ff;
+      --text-muted: #9ca3af;
+      --border-light: rgba(255, 255, 255, 0.1);
+      --glow-red: 0 0 20px rgba(220, 38, 38, 0.4);
+      --gradient-red: linear-gradient(to right, #F87171, #DC2626, #B91C1C);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background-color: var(--brand-dark);
+      color: var(--text-light);
+      min-height: 100vh;
+      padding: 24px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('https://grainy-gradients.vercel.app/noise.svg');
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -30%;
+      left: -30%;
+      width: 80%;
+      height: 80%;
+      background: radial-gradient(circle, rgba(220, 38, 38, 0.15) 0%, transparent 70%);
+      filter: blur(100px);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    #app {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      padding: 20px;
+      background: var(--brand-card);
+      border: 1px solid var(--border-light);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .topbar-left {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .topbar-right {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .topbar h2,
+    .auth-title,
+    .modal-title,
+    h3 {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 900;
+      text-transform: uppercase;
+      background: var(--gradient-red);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      letter-spacing: 1px;
+    }
+
+    .topbar h2 {
+      font-size: 32px;
+    }
+
+    .live-badge {
+      padding: 6px 12px;
+      background: rgba(220, 38, 38, 0.1);
+      border: 1px solid var(--brand-red);
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--brand-red);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      animation: pulse-live 2s infinite;
+      letter-spacing: 1px;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--brand-red);
+      border-radius: 50%;
+      animation: blink-dot 1s infinite;
+    }
+
+    @keyframes pulse-live {
+
+      0%,
+      100% {
+        box-shadow: 0 0 5px rgba(220, 38, 38, 0.4);
+      }
+
+      50% {
+        box-shadow: 0 0 15px rgba(220, 38, 38, 0.7);
+      }
+    }
+
+    @keyframes blink-dot {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    .user-info {
+      color: var(--text-light);
+      font-weight: 700;
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-light);
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .btn:hover {
+      border-color: var(--brand-red);
+      color: var(--brand-red);
+      background: rgba(220, 38, 38, 0.1);
+      box-shadow: var(--glow-red);
+      transform: translateY(-2px);
+    }
+
+    .btn-logout {
+      padding: 8px 16px;
+      font-size: 12px;
+      border: 1px solid rgba(255, 50, 50, 0.3);
+      color: #ff4444;
+      background: transparent;
+    }
+
+    .btn-logout:hover {
+      background: rgba(255, 0, 0, 0.1);
+      border-color: #ff0000;
+      box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+    }
+
+    .btn-teacher,
+    .form-btn {
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 800;
+      border: none;
+      background: var(--gradient-red);
+      color: white;
+      box-shadow: var(--glow-red);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .btn-teacher:hover,
+    .form-btn:hover {
+      background: linear-gradient(to right, #DC2626, #B91C1C);
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .auth-container {
+      max-width: 450px;
+      margin: 60px auto;
+      background: var(--brand-card);
+      border: 1px solid var(--border-light);
+      border-radius: 24px;
+      padding: 40px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .auth-title {
+      font-size: 32px;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 16px;
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      color: var(--text-light);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 16px;
+      transition: all 0.3s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--brand-red);
+      box-shadow: var(--glow-red);
+      background: rgba(0, 0, 0, 0.8);
+    }
+
+    textarea.form-input {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .form-btn {
+      width: 100%;
+      padding: 16px;
+      margin-top: 24px;
+      font-size: 16px;
+      border-radius: 12px;
+    }
+
+    .form-link {
+      text-align: center;
+      margin-top: 24px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .form-link a {
+      color: var(--brand-red);
+      text-decoration: none;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .form-link a:hover {
+      color: #F87171;
+      text-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
+    }
+
+    .alert {
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      font-size: 14px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .alert-success {
+      background: rgba(220, 38, 38, 0.1);
+      border: 1px solid var(--brand-red);
+      color: var(--brand-red);
+    }
+
+    .alert-error {
+      background: rgba(255, 50, 50, 0.1);
+      border: 1px solid #ff0000;
+      color: #ff4444;
+    }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      overflow-y: auto;
+      padding: 20px;
+      backdrop-filter: blur(5px);
+    }
+
+    .modal-overlay.active {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: #121212;
+      border: 1px solid var(--border-light);
+      border-radius: 24px;
+      padding: 40px;
+      max-width: 800px;
+      width: 100%;
+      margin: 40px auto;
+      box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .modal-title {
+      font-size: 24px;
+    }
+
+    .modal-close {
+      width: 36px;
+      height: 36px;
+      border: 2px solid var(--border-light);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    .modal-close:hover {
+      background: var(--brand-red);
+      border-color: var(--brand-red);
+      color: white;
+      transform: rotate(90deg);
+      box-shadow: var(--glow-red);
+    }
+
+    .lesson-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-light);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .lesson-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .lesson-title {
+      color: var(--text-light);
+      font-weight: 800;
+      font-size: 18px;
+      text-transform: uppercase;
+    }
+
+    .btn-remove {
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid #ff4444;
+      background: rgba(255, 0, 0, 0.1);
+      color: #ff4444;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+    }
+
+    .btn-remove:hover {
+      background: #ff4444;
+      color: white;
+      box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+    }
+
+    .btn-add-lesson {
+      border: 2px dashed var(--border-light);
+      background: transparent;
+      color: var(--text-muted);
+      padding: 16px;
+      font-weight: 700;
+    }
+
+    .btn-add-lesson:hover {
+      background: rgba(220, 38, 38, 0.05);
+      border-color: var(--brand-red);
+      color: var(--brand-red);
+    }
+
+    .file-input-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn-pick-file {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1px solid var(--border-light);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-light);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: 'Montserrat', sans-serif;
+    }
+
+    .btn-pick-file:hover {
+      border-color: var(--brand-red);
+      color: var(--brand-red);
+      background: rgba(220, 38, 38, 0.1);
+    }
+
+    .info-box {
+      background: rgba(220, 38, 38, 0.05);
+      border-left: 4px solid var(--brand-red);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .info-box-title {
+      color: var(--brand-red);
+      font-weight: 800;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .info-box-content {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    code {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      display: block;
+      white-space: pre;
+      overflow-x: auto;
+      border: 1px solid var(--border-light);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 32px;
+    }
+
+    .card {
+      background: var(--brand-card);
+      border: 1px solid var(--border-light);
+      border-radius: 20px;
+      padding: 0;
+      cursor: pointer;
+      transition: all 0.4s ease;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .card:hover {
+      border-color: var(--brand-red);
+      box-shadow: 0 10px 40px rgba(220, 38, 38, 0.2);
+      transform: translateY(-8px);
+    }
+
+    .thumb {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      background: linear-gradient(45deg, #1a1a1a, #333);
+      border-radius: 20px 20px 0 0;
+      position: relative;
+      border-bottom: 1px solid var(--border-light);
+      transition: all 0.4s ease;
+    }
+
+    .card:hover .thumb {
+      opacity: 0.8;
+    }
+
+    .card.locked {
+      pointer-events: none;
+      filter: grayscale(1);
+    }
+
+    .card.locked .course-actions {
+      display: none !important;
+    }
+
+    .locked-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-weight: 800;
+      font-size: 20px;
+      text-transform: uppercase;
+      z-index: 5;
+      backdrop-filter: blur(2px);
+    }
+
+    .locked-icon {
+      font-size: 40px;
+      margin-bottom: 10px;
+      color: #555;
+    }
+
+    .card h3 {
+      font-size: 20px;
+      font-weight: 800;
+      margin: 24px 24px 12px;
+      background: none;
+      -webkit-text-fill-color: var(--text-light);
+      color: var(--text-light);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.3s;
+    }
+
+    .card:hover h3 {
+      color: var(--brand-red);
+    }
+
+    .muted {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin: 0 24px 24px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+
+    .course-actions {
+      display: none;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      gap: 12px;
+      z-index: 10;
+    }
+
+    .card:hover .course-actions {
+      display: flex;
+    }
+
+    .btn-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(5px);
+      border: 1px solid var(--border-light);
+      background: rgba(0, 0, 0, 0.5);
+      color: var(--text-light);
+    }
+
+    .btn-refresh:hover {
+      background: #10b981;
+      border-color: #10b981;
+      color: white;
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+      transform: scale(1.1);
+    }
+
+    .btn-edit:hover {
+      background: var(--brand-red);
+      border-color: var(--brand-red);
+      color: white;
+      box-shadow: var(--glow-red);
+      transform: scale(1.1);
+    }
+
+    .btn-delete:hover {
+      background: #ff0000;
+      border-color: #ff0000;
+      color: white;
+      box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+      transform: scale(1.1);
+    }
+
+    h3 {
+      color: var(--text-light);
+      font-size: 24px;
+      font-weight: 800;
+      margin: 40px 0 24px;
+      background: none;
+      -webkit-text-fill-color: initial;
+    }
+
+    .lesson-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 32px;
+    }
+
+    .lesson {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-light);
+      border-radius: 16px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .lesson:hover {
+      border-color: var(--brand-red);
+      box-shadow: 0 5px 20px rgba(220, 38, 38, 0.2);
+      transform: translateY(-4px);
+      background: rgba(220, 38, 38, 0.05);
+    }
+
+    .lesson .muted {
+      color: var(--brand-red);
+      font-weight: 700;
+      margin: 0 0 12px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 12px;
+    }
+
+    .lesson>div:last-child {
+      color: var(--text-light);
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    #playerWrap {
+      position: relative;
+      width: 100%;
+      user-select: none;
+      margin-top: 32px;
+    }
+
+    #playerWrap iframe {
+      width: 100%;
+      height: 600px;
+      border: 1px solid var(--border-light);
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    }
+
+    .video-controls-blocker {
+      background: linear-gradient(to left, #050505 0%, rgba(5, 5, 5, 0) 100%);
+      border-top-right-radius: 20px;
+    }
+
+    .video-security-notice {
+      background: rgba(220, 38, 38, 0.2);
+      border: 1px solid var(--brand-red);
+      color: var(--brand-red);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 10px 20px;
+      border-radius: 50px;
+      bottom: 30px;
+    }
+
+    a {
+      color: var(--text-light);
+      text-decoration: none;
+      font-weight: 700;
+      transition: all 0.3s ease;
+      display: inline-block;
+      padding: 12px 24px;
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 14px;
+    }
+
+    a:hover {
+      background: var(--brand-red);
+      border-color: var(--brand-red);
+      color: white;
+      box-shadow: var(--glow-red);
+    }
+
+    #courseDesc {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 24px;
+      border-radius: 16px;
+      margin-bottom: 32px;
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1.6;
+      border: 1px solid var(--border-light);
+    }
+
+    #loader {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--brand-red);
+      font-size: 24px;
+      z-index: 9999;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-shadow: var(--glow-red);
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #050505;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--brand-red);
+    }
+
+    @keyframes shake {
+
+      0%,
+      100% {
+        transform: translateX(-50%) translateX(0);
+      }
+
+      10%,
+      30%,
+      50%,
+      70%,
+      90% {
+        transform: translateX(-50%) translateX(-10px);
+      }
+
+      20%,
+      40%,
+      60%,
+      80% {
+        transform: translateX(-50%) translateX(10px);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app"></div>
+
+  <div id="modalAddCourse" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">THÊM KHÓA HỌC THỦ CÔNG</h2>
+        <button class="modal-close" onclick="closeModalAddCourse()">×</button>
+      </div>
+      <div id="modalMsg"></div>
+      <form id="formAddCourse" onsubmit="return false;">
+        <div class="form-group">
+          <label class="form-label">Tên khóa học *</label>
+          <input type="text" class="form-input" id="courseName" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mô tả khóa học</label>
+          <textarea class="form-input" id="courseDesc" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Thumbnail</label>
+          <input type="text" class="form-input" id="courseThumbnail" placeholder="Link Drive hoặc URL">
+          <div class="file-input-group">
+            <button type="button" class="btn-pick-file" onclick="pickThumbnail()">📁 Chọn từ Drive</button>
+          </div>
+        </div>
+        <hr style="border: 1px solid var(--border-light); margin: 32px 0;">
+        <h3>Danh sách bài học</h3>
+        <div id="lessonsContainer"></div>
+        <button type="button" class="btn btn-add-lesson" onclick="addLessonField()"
+          style="width: 100%; margin-top: 24px;">+ Thêm bài học</button>
+        <button type="submit" class="form-btn" style="margin-top: 32px;">Tạo khóa học</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="modalEditCourse" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">✏️ CHỈNH SỬA KHÓA HỌC</h2>
+        <button class="modal-close" onclick="closeModalEditCourse()">×</button>
+      </div>
+      <div id="modalEditMsg"></div>
+      <form id="formEditCourse" onsubmit="return false;">
+        <input type="hidden" id="editOldCourseName">
+        <div class="form-group">
+          <label class="form-label">Tên khóa học *</label>
+          <input type="text" class="form-input" id="editCourseName" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mô tả khóa học</label>
+          <textarea class="form-input" id="editCourseDesc" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Thumbnail</label>
+          <input type="text" class="form-input" id="editCourseThumbnail" placeholder="Link Drive hoặc URL">
+          <div class="file-input-group">
+            <button type="button" class="btn-pick-file" onclick="pickThumbnail()">📁 Chọn từ Drive</button>
+          </div>
+        </div>
+        <hr style="border: 1px solid var(--border-light); margin: 32px 0;">
+        <h3>Danh sách bài học</h3>
+        <div id="editLessonsContainer"></div>
+        <button type="button" class="btn btn-add-lesson" onclick="addEditLessonField()"
+          style="width: 100%; margin-top: 24px;">+ Thêm bài học</button>
+        <button type="submit" class="form-btn" style="margin-top: 32px;">💾 Lưu thay đổi</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="modalQuickAdd" class="modal-overlay">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h2 class="modal-title">⚡ THÊM NHANH KHÓA HỌC</h2>
+        <button class="modal-close" onclick="closeModalQuickAdd()">×</button>
+      </div>
+      <div class="info-box">
+        <div class="info-box-title">📁 Cấu trúc folder yêu cầu:</div>
+        <div class="info-box-content">
+          <code>Khóa Học D/
+├── thumbnail.jpg
+├── Bài 1: Giới thiệu/
+│   ├── video.mp4
+│   └── material.pdf
+└── Bài 2: Nội dung/
+    ├── lesson.mp4
+    └── slides.pdf</code>
+        </div>
+      </div>
+      <div id="quickAddMsg"></div>
+      <form id="formQuickAdd" onsubmit="return false;">
+        <div class="form-group">
+          <label class="form-label">Link Google Drive Folder *</label>
+          <input type="text" class="form-input" id="quickFolderUrl"
+            placeholder="https://drive.google.com/drive/folders/..." required>
+          <div style="color: var(--text-muted); font-size: 12px; margin-top: 8px; font-weight: 500;">
+            💡 Đảm bảo folder đã được share "Anyone with the link can view"
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mô tả khóa học (tùy chọn)</label>
+          <textarea class="form-input" id="quickCourseDesc" rows="3" placeholder="Mô tả ngắn về khóa học..."></textarea>
+        </div>
+        <button type="submit" class="form-btn">⚡ Thêm nhanh</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="modalAddStudent" class="modal-overlay">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2 class="modal-title">👥 THÊM HỌC VIÊN</h2>
+        <button class="modal-close" onclick="closeModalAddStudent()">×</button>
+      </div>
+      <div id="addStudentMsg"></div>
+      <form id="formAddStudent" onsubmit="return false;">
+        <input type="hidden" id="addStudentCourseName">
+        <div class="info-box">
+          <div class="info-box-title">Khóa học: <span id="lblCourseName" style="color:var(--text-light)"></span></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email học viên (Mỗi dòng 1 email hoặc cách nhau dấu phẩy)</label>
+          <textarea class="form-input" id="listEmails" rows="5" placeholder="nguyenva@gmail.com, tranvb@gmail.com..."
+            required></textarea>
+        </div>
+        <button type="submit" class="form-btn">Thêm học viên</button>
+      </form>
+    </div>
+
+    <script>
+      // ========== CẤU HÌNH API - THAY ĐỔI URL NÀY ==========
+      const API_URL = 'https://script.google.com/macros/s/AKfycbxVTiKkHbzYHVk9G0M2vwEf5rwvarH8qdAbWO0Jh4d47CpO8433tf6TzNXKQSkS9-_j/exec';
+
+      // Hàm gọi API
+      // ✅ ĐỔI SANG FormData
+      async function callAPI(action, data = {}) {
+        try {
+          const formData = new URLSearchParams();
+          formData.append('action', action);
+
+          // Flatten data object thành form fields
+          for (const key in data) {
+            if (typeof data[key] === 'object' && data[key] !== null) {
+              formData.append(key, JSON.stringify(data[key]));
+            } else {
+              formData.append(key, data[key]);
+            }
+          }
+
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            body: formData  // ← FormData, không phải JSON
+          });
+
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+
+          return await response.json();
+
+        } catch (error) {
+          console.error('API Error:', error);
+          throw error;
+        }
+      }
+
+      const app = document.getElementById('app');
+      let state = { view: 'login', course: null, lesson: null, user: null };
+      let isTeacher = false;
+      let lessonCount = 0;
+      let editLessonCount = 0;
+
+      let devToolsDetected = false;
+      let warningCount = 0;
+      let blurCount = 0;
+
+      function showLoading() {
+        const existing = document.getElementById('loader');
+        if (existing) return;
+        const loader = document.createElement('div');
+        loader.id = 'loader';
+        loader.textContent = '⚡ Đang tải...';
+        document.body.appendChild(loader);
+      }
+
+      function hideLoading() {
+        const loader = document.getElementById('loader');
+        if (loader) loader.remove();
+      }
+
+      // ========== CACHE ==========
+      const localCache = {
+        data: {},
+        get: function (key) {
+          if (key === 'homeData') {
+            console.log('🔴 BYPASSING CACHE - Courses are always real-time');
+            return null;
+          }
+
+          const item = this.data[key];
+          if (!item) return null;
+          if (Date.now() > item.expiry) {
+            delete this.data[key];
+            return null;
+          }
+          console.log('📦 Cache hit:', key);
+          return item.value;
+        },
+        set: function (key, value, duration) {
+          if (key === 'homeData') {
+            console.log('⏭️ SKIP CACHE - Courses remain real-time');
+            return;
+          }
+
+          this.data[key] = {
+            value: value,
+            expiry: Date.now() + (duration * 1000)
+          };
+        },
+        clear: function () {
+          this.data = {};
+          console.log('🗑️ Cache cleared');
+        }
+      };
+
+      // ========== SECURITY ==========
+      function detectDevTools() {
+        const threshold = 160;
+        const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+        const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+        if (!(heightThreshold && widthThreshold) &&
+          ((window.Firebug && window.Firebug.chrome && window.Firebug.chrome.isInitialized) ||
+            widthThreshold || heightThreshold)) {
+          if (!devToolsDetected) {
+            devToolsDetected = true;
+            handleDevToolsOpen('SIZE_CHANGE');
+          }
+        }
+      }
+
+      document.addEventListener('contextmenu', function (e) {
+        if (state.view === 'lesson') {
+          e.preventDefault();
+          logWarning('RIGHT_CLICK', 'User attempted right-click on video page');
+          showSecurityNotice('⚠️ Hành động này đã được ghi nhận!');
+          return false;
+        }
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if (state.view !== 'lesson') return;
+
+        if (e.keyCode === 123) {
+          e.preventDefault();
+          handleDevToolsAttempt('F12_PRESSED');
+          return false;
+        }
+
+        if ((e.ctrlKey && e.shiftKey && e.keyCode === 73) || (e.metaKey && e.altKey && e.keyCode === 73)) {
+          e.preventDefault();
+          handleDevToolsAttempt('CTRL_SHIFT_I');
+          return false;
+        }
+
+        if ((e.ctrlKey && e.shiftKey && e.keyCode === 74) || (e.metaKey && e.altKey && e.keyCode === 74)) {
+          e.preventDefault();
+          handleDevToolsAttempt('CTRL_SHIFT_J');
+          return false;
+        }
+
+        if ((e.ctrlKey && e.shiftKey && e.keyCode === 67) || (e.metaKey && e.altKey && e.keyCode === 67)) {
+          e.preventDefault();
+          handleDevToolsAttempt('CTRL_SHIFT_C');
+          return false;
+        }
+
+        if (e.ctrlKey && e.keyCode === 85) {
+          e.preventDefault();
+          handleDevToolsAttempt('CTRL_U_VIEW_SOURCE');
+          return false;
+        }
+
+        if (e.ctrlKey && e.keyCode === 83) {
+          e.preventDefault();
+          logWarning('SAVE_ATTEMPT', 'User attempted to save page');
+          showSecurityNotice('⚠️ Không thể lưu nội dung!');
+          return false;
+        }
+      });
+
+      function handleDevToolsAttempt(method) {
+        warningCount++;
+        logWarning('DEV_TOOLS_ATTEMPT', 'User attempted to open dev tools via ' + method);
+        if (warningCount >= 3) {
+          showSecurityNotice('🚨 CẢNH BÁO: Hành vi nghi ngờ đã được ghi lại! Admin sẽ xem xét tài khoản của bạn.');
+          setTimeout(function () {
+            if (confirm('Tài khoản của bạn đã bị đánh dấu do hành vi nghi ngờ. Bạn có muốn quay về trang chủ không?')) {
+              warningCount = 0;
+              renderHome();
+            }
+          }, 2000);
+        } else {
+          showSecurityNotice('⚠️ Cảnh báo ' + warningCount + '/3: Hành động này vi phạm chính sách!');
+        }
+      }
+
+      function handleDevToolsOpen(method) {
+        logWarning('DEV_TOOLS_DETECTED', 'Dev tools opened via ' + method);
+        showSecurityNotice('🚨 Dev Tools đã được phát hiện! Hành động của bạn đang được ghi lại.');
+
+        const iframe = document.querySelector('#playerWrap iframe');
+        if (iframe) {
+          iframe.style.filter = 'blur(10px)';
+        }
+      }
+
+      async function logWarning(type, description) {
+        if (!state.user) return;
+        const details = {
+          description: description,
+          course: state.course || '',
+          lesson: state.lesson || '',
+          browser: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        };
+
+        try {
+          await callAPI('logSecurityWarning', {
+            email: state.user.email,
+            type: type,
+            details: details
+          });
+          console.log('Warning logged');
+        } catch (error) {
+          console.error('Log warning failed:', error);
+        }
+      }
+
+      function showSecurityNotice(message) {
+        const existing = document.getElementById('securityNotice');
+        if (existing) existing.remove();
+
+        const notice = document.createElement('div');
+        notice.id = 'securityNotice';
+        notice.style.cssText =
+          'position: fixed; top: 20px; left: 50%; transform: translateX(-50%);' +
+          'background: rgba(220, 38, 38, 0.95); color: white; padding: 16px 32px;' +
+          'border-radius: 8px; font-weight: 700; font-size: 16px; z-index: 10000;' +
+          'box-shadow: 0 0 30px rgba(220, 38, 38, 0.6); animation: shake 0.5s; text-transform: uppercase; letter-spacing: 1px;';
+        notice.textContent = message;
+
+        document.body.appendChild(notice);
+
+        setTimeout(function () {
+          notice.style.transition = 'opacity 0.5s';
+          notice.style.opacity = '0';
+          setTimeout(function () { notice.remove(); }, 500);
+        }, 5000);
+      }
+
+      // setInterval(detectDevTools, 1000);
+      // window.addEventListener('resize', detectDevTools);
+
+      window.addEventListener('blur', function () {
+        if (state.view === 'lesson') {
+          blurCount++;
+          if (blurCount > 5) {
+            logWarning('SUSPICIOUS_ACTIVITY', 'User switched tabs/windows ' + blurCount + ' times during video');
+          }
+        }
+      });
+
+      // ========== AUTH ==========
+      function checkAuth() {
+        const userData = localStorage.getItem('lms_user');
+        if (userData) {
+          try {
+            state.user = JSON.parse(userData);
+            return true;
+          } catch (e) {
+            localStorage.removeItem('lms_user');
+          }
+        }
+        return false;
+      }
+
+      function logout() {
+        localStorage.removeItem('lms_user');
+        localCache.clear();
+        state.user = null;
+        state.view = 'login';
+        isTeacher = false;
+        renderLogin();
+      }
+
+      function setUrl(params) {
+        const base = location.href.split('?')[0];
+        const qs = new URLSearchParams(params).toString();
+        history.pushState({}, '', qs ? base + '?' + qs : base);
+      }
+
+      function renderLogin() {
+        app.innerHTML = '<div class="auth-container">' +
+          '<h1 class="auth-title">ĐĂNG NHẬP</h1>' +
+          '<div id="loginMsg"></div>' +
+          '<form id="loginForm" onsubmit="return false;">' +
+          '<div class="form-group">' +
+          '<label class="form-label">Email hoặc Số điện thoại</label>' +
+          '<input type="text" class="form-input" id="loginCredential" required>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Mật khẩu</label>' +
+          '<input type="password" class="form-input" id="loginPassword" required>' +
+          '</div>' +
+          '<button type="submit" class="form-btn">Đăng nhập</button>' +
+          '</form>' +
+          '<div class="form-link">Chưa có tài khoản? <a onclick="renderRegister()">Đăng ký ngay</a></div>' +
+          '</div>';
+
+        document.getElementById('loginForm').addEventListener('submit', handleLogin);
+      }
+
+      function renderRegister() {
+        app.innerHTML = '<div class="auth-container">' +
+          '<h1 class="auth-title">ĐĂNG KÝ</h1>' +
+          '<div id="registerMsg"></div>' +
+          '<form id="registerForm" onsubmit="return false;">' +
+          '<div class="form-group">' +
+          '<label class="form-label">Họ và tên</label>' +
+          '<input type="text" class="form-input" id="registerName" required>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Email</label>' +
+          '<input type="email" class="form-input" id="registerEmail" required>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Số điện thoại</label>' +
+          '<input type="tel" class="form-input" id="registerPhone" required>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Mật khẩu</label>' +
+          '<input type="password" class="form-input" id="registerPassword" required minlength="6">' +
+          '</div>' +
+          '<button type="submit" class="form-btn">Đăng ký</button>' +
+          '</form>' +
+          '<div class="form-link">Đã có tài khoản? <a onclick="renderLogin()">Đăng nhập</a></div>' +
+          '</div>';
+        document.getElementById('registerForm').addEventListener('submit', handleRegister);
+      }
+
+      async function handleLogin(e) {
+        e.preventDefault();
+        const credential = document.getElementById('loginCredential').value;
+        const password = document.getElementById('loginPassword').value;
+        const msgDiv = document.getElementById('loginMsg');
+
+        msgDiv.innerHTML = '<div class="alert alert-success">Đang đăng nhập...</div>';
+
+        try {
+          const result = await callAPI('loginUser', { credential, password });
+
+          if (result.success) {
+            msgDiv.innerHTML = '<div class="alert alert-success">' + result.message + '</div>';
+            localStorage.setItem('lms_user', JSON.stringify(result.user));
+            state.user = result.user;
+            setTimeout(function () {
+              renderHome();
+            }, 1000);
+          } else {
+            msgDiv.innerHTML = '<div class="alert alert-error">' + result.message + '</div>';
+          }
+        } catch (error) {
+          msgDiv.innerHTML = '<div class="alert alert-error">Lỗi kết nối: ' + error + '</div>';
+        }
+      }
+
+      async function handleRegister(e) {
+        e.preventDefault();
+        const userData = {
+          name: document.getElementById('registerName').value,
+          email: document.getElementById('registerEmail').value,
+          phone: document.getElementById('registerPhone').value,
+          password: document.getElementById('registerPassword').value
+        };
+        const msgDiv = document.getElementById('registerMsg');
+
+        msgDiv.innerHTML = '<div class="alert alert-success">Đang xử lý...</div>';
+
+        try {
+          const result = await callAPI('registerUser', userData);
+
+          if (result.success) {
+            msgDiv.innerHTML = '<div class="alert alert-success">' + result.message + '</div>';
+            setTimeout(function () {
+              renderLogin();
+            }, 2000);
+          } else {
+            msgDiv.innerHTML = '<div class="alert alert-error">' + result.message + '</div>';
+          }
+        } catch (error) {
+          msgDiv.innerHTML = '<div class="alert alert-error">Lỗi: ' + error + '</div>';
+        }
+      }
+
+      async function checkTeacherPermission() {
+        if (!state.user) return;
+
+        try {
+          const result = await callAPI('checkIsTeacher', { email: state.user.email });
+          isTeacher = result;
+          if (isTeacher) {
+            updateTopbarWithTeacherBtn();
+          }
+        } catch (error) {
+          console.error('Check teacher error:', error);
+        }
+      }
+
+      function updateTopbarWithTeacherBtn() {
+        const topbarRight = document.querySelector('.topbar-right');
+        if (!topbarRight) return;
+
+        const existingBtn = document.getElementById('btnAddCourse');
+        if (existingBtn) return;
+
+        const btnQuick = document.createElement('button');
+        btnQuick.id = 'btnQuickAdd';
+        btnQuick.className = 'btn btn-teacher';
+        btnQuick.textContent = '⚡ Thêm Nhanh';
+        btnQuick.onclick = openModalQuickAdd;
+        btnQuick.style.marginRight = '12px';
+
+        const btnManual = document.createElement('button');
+        btnManual.id = 'btnAddCourse';
+        btnManual.className = 'btn btn-teacher';
+        btnManual.textContent = '+ Thêm Thủ Công';
+        btnManual.onclick = openModalAddCourse;
+
+        topbarRight.insertBefore(btnQuick, topbarRight.lastElementChild);
+        topbarRight.insertBefore(btnManual, topbarRight.lastElementChild);
+      }
+
+      // ========== EDIT & DELETE ==========
+      async function openEditCourse(courseName, event) {
+        if (event) {
+          event.stopPropagation();
+        }
+
+        showLoading();
+
+        try {
+          const result = await callAPI('getCourseForEdit', { courseName });
+          hideLoading();
+
+          if (result.success) {
+            const data = result.data;
+
+            document.getElementById('editOldCourseName').value = courseName;
+            document.getElementById('editCourseName').value = data.courseName;
+            document.getElementById('editCourseDesc').value = data.courseDesc || '';
+            document.getElementById('editCourseThumbnail').value = data.thumbnail || '';
+
+            const container = document.getElementById('editLessonsContainer');
+            container.innerHTML = '';
+            editLessonCount = 0;
+
+            data.lessons.forEach(function (lesson) {
+              editLessonCount++;
+              const lessonDiv = document.createElement('div');
+              lessonDiv.className = 'lesson-item';
+              lessonDiv.id = 'edit-lesson-' + editLessonCount;
+              lessonDiv.innerHTML =
+                '<div class="lesson-header">' +
+                '<span class="lesson-title">Bài học ' + editLessonCount + '</span>' +
+                '<button type="button" class="btn btn-remove" onclick="removeEditLessonField(' + editLessonCount + ')">Xóa</button>' +
+                '</div>' +
+                '<div class="form-group">' +
+                '<label class="form-label">Tên bài học *</label>' +
+                '<input type="text" class="form-input edit-lesson-name" value="' + escapeHtml(lesson.name) + '" required>' +
+                '</div>' +
+                '<div class="form-group">' +
+                '<label class="form-label">Video</label>' +
+                '<input type="text" class="form-input edit-lesson-video" value="' + escapeHtml(lesson.videoUrl) + '" placeholder="Link Drive hoặc URL">' +
+                '<div class="file-input-group">' +
+                '<button type="button" class="btn-pick-file" onclick="pickVideo(' + editLessonCount + ')">📹 Chọn từ Drive</button>' +
+                '</div>' +
+                '</div>' +
+                '<div class="form-group">' +
+                '<label class="form-label">Tài liệu</label>' +
+                '<input type="text" class="form-input edit-lesson-material" value="' + escapeHtml(lesson.materialUrl) + '" placeholder="Link Drive hoặc URL">' +
+                '<div class="file-input-group">' +
+                '<button type="button" class="btn-pick-file" onclick="pickMaterial(' + editLessonCount + ')">📄 Chọn từ Drive</button>' +
+                '</div>' +
+                '</div>';
+              container.appendChild(lessonDiv);
+            });
+
+            document.getElementById('modalEditCourse').classList.add('active');
+            document.getElementById('modalEditMsg').innerHTML = '';
+          } else {
+            alert('Lỗi: ' + result.message);
+          }
+        } catch (error) {
+          hideLoading();
+          alert('Lỗi: ' + error);
+        }
+      }
+
+      function closeModalEditCourse() {
+        document.getElementById('modalEditCourse').classList.remove('active');
+      }
+
+      function addEditLessonField() {
+        editLessonCount++;
+        const container = document.getElementById('editLessonsContainer');
+
+        const lessonDiv = document.createElement('div');
+        lessonDiv.className = 'lesson-item';
+        lessonDiv.id = 'edit-lesson-' + editLessonCount;
+        lessonDiv.innerHTML =
+          '<div class="lesson-header">' +
+          '<span class="lesson-title">Bài học ' + editLessonCount + '</span>' +
+          '<button type="button" class="btn btn-remove" onclick="removeEditLessonField(' + editLessonCount + ')">Xóa</button>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Tên bài học *</label>' +
+          '<input type="text" class="form-input edit-lesson-name" required>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Video</label>' +
+          '<input type="text" class="form-input edit-lesson-video" placeholder="Link Drive hoặc URL">' +
+          '<div class="file-input-group">' +
+          '<button type="button" class="btn-pick-file" onclick="pickVideo(' + editLessonCount + ')">📹 Chọn từ Drive</button>' +
+          '</div>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Tài liệu</label>' +
+          '<input type="text" class="form-input edit-lesson-material" placeholder="Link Drive hoặc URL">' +
+          '<div class="file-input-group">' +
+          '<button type="button" class="btn-pick-file" onclick="pickMaterial(' + editLessonCount + ')">📄 Chọn từ Drive</button>' +
+          '</div>' +
+          '</div>';
+        container.appendChild(lessonDiv);
+      }
+
+      function removeEditLessonField(id) {
+        const elem = document.getElementById('edit-lesson-' + id);
+        if (elem) elem.remove();
+      }
+
+      document.getElementById('formEditCourse').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const oldCourseName = document.getElementById('editOldCourseName').value;
+        const courseName = document.getElementById('editCourseName').value.trim();
+        const courseDesc = document.getElementById('editCourseDesc').value.trim();
+        const thumbnail = document.getElementById('editCourseThumbnail').value.trim();
+
+        const lessonItems = document.querySelectorAll('#editLessonsContainer .lesson-item');
+        const lessons = [];
+
+        lessonItems.forEach(function (item) {
+          const name = item.querySelector('.edit-lesson-name').value.trim();
+          const video = item.querySelector('.edit-lesson-video').value.trim();
+          const material = item.querySelector('.edit-lesson-material').value.trim();
+
+          if (name) {
+            lessons.push({
+              name: name,
+              video: video,
+              material: material
+            });
+          }
+        });
+
+        if (lessons.length === 0) {
+          document.getElementById('modalEditMsg').innerHTML =
+            '<div class="alert alert-error">Vui lòng thêm ít nhất 1 bài học!</div>';
+          return;
+        }
+
+        const courseData = {
+          courseName: courseName,
+          courseDesc: courseDesc,
+          thumbnail: thumbnail,
+          lessons: lessons
+        };
+
+        document.getElementById('modalEditMsg').innerHTML =
+          '<div class="alert alert-success">⏳ Đang cập nhật...</div>';
+
+        try {
+          const result = await callAPI('updateCourse', { oldCourseName, courseData });
+
+          if (result.success) {
+            document.getElementById('modalEditMsg').innerHTML =
+              '<div class="alert alert-success">✅ ' + result.message + '</div>';
+
+            localCache.clear();
+
+            setTimeout(function () {
+              closeModalEditCourse();
+              renderHome();
+            }, 1000);
+          } else {
+            document.getElementById('modalEditMsg').innerHTML =
+              '<div class="alert alert-error">' + result.message + '</div>';
+          }
+        } catch (error) {
+          document.getElementById('modalEditMsg').innerHTML =
+            '<div class="alert alert-error">Lỗi: ' + error + '</div>';
+        }
+      });
+
+      async function refreshCourseConfirm(courseName, event) {
+        if (event) {
+          event.stopPropagation();
+        }
+
+        if (!confirm('🔄 REFRESH KHÓA HỌC\n\nLàm mới dữ liệu từ folder Drive của khóa học "' + courseName + '"?\n\n• Sẽ quét lại toàn bộ folder Drive\n• Cập nhật video/bài học mới\n• Dữ liệu cũ sẽ được giữ nguyên')) {
+          return;
+        }
+
+        showLoading();
+
+        try {
+          const result = await callAPI('refreshCourse', { courseName });
+          hideLoading();
+
+          if (result.success) {
+            localCache.clear();
+            alert('✅ ' + result.message + '\n\n' +
+              (result.details ?
+                '• Số bài học: ' + result.details.lessonsCount + '\n' +
+                '• Khóa học: ' + result.details.courseName
+                : ''));
+            renderHome();
+          } else {
+            alert('❌ Lỗi: ' + result.message);
+          }
+        } catch (error) {
+          hideLoading();
+          alert('❌ Lỗi: ' + error);
+        }
+      }
+
+      async function deleteCourseConfirm(courseName, event) {
+        if (event) {
+          event.stopPropagation();
+        }
+
+        if (!confirm('⚠️ XÓA KHÓA HỌC\n\nBạn có chắc chắn muốn xóa "' + courseName + '"?\n\n• Tất cả bài học sẽ bị xóa\n• Không thể hoàn tác')) {
+          return;
+        }
+
+        showLoading();
+
+        try {
+          const result = await callAPI('deleteCourse', { courseName });
+          hideLoading();
+
+          if (result.success) {
+            localCache.clear();
+            alert('✅ ' + result.message);
+            renderHome();
+          } else {
+            alert('❌ Lỗi: ' + result.message);
+          }
+        } catch (error) {
+          hideLoading();
+          alert('❌ Lỗi: ' + error);
+        }
+      }
+
+      // ========== ADD COURSE ==========
+      function openModalAddCourse() {
+        document.getElementById('modalAddCourse').classList.add('active');
+        document.getElementById('formAddCourse').reset();
+        document.getElementById('lessonsContainer').innerHTML = '';
+        document.getElementById('modalMsg').innerHTML = '';
+        lessonCount = 0;
+        addLessonField();
+      }
+
+      function closeModalAddCourse() {
+        document.getElementById('modalAddCourse').classList.remove('active');
+      }
+
+      function addLessonField() {
+        lessonCount++;
+        const container = document.getElementById('lessonsContainer');
+
+        const lessonDiv = document.createElement('div');
+        lessonDiv.className = 'lesson-item';
+        lessonDiv.id = 'lesson-' + lessonCount;
+        lessonDiv.innerHTML =
+          '<div class="lesson-header">' +
+          '<span class="lesson-title">Bài học ' + lessonCount + '</span>' +
+          '<button type="button" class="btn btn-remove" onclick="removeLessonField(' + lessonCount + ')">Xóa</button>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Tên bài học *</label>' +
+          '<input type="text" class="form-input lesson-name" required>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Video</label>' +
+          '<input type="text" class="form-input lesson-video" placeholder="Link Drive hoặc URL">' +
+          '<div class="file-input-group">' +
+          '<button type="button" class="btn-pick-file" onclick="pickVideo(' + lessonCount + ')">📹 Chọn từ Drive</button>' +
+          '</div>' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label class="form-label">Tài liệu</label>' +
+          '<input type="text" class="form-input lesson-material" placeholder="Link Drive hoặc URL">' +
+          '<div class="file-input-group">' +
+          '<button type="button" class="btn-pick-file" onclick="pickMaterial(' + lessonCount + ')">📄 Chọn từ Drive</button>' +
+          '</div>' +
+          '</div>';
+        container.appendChild(lessonDiv);
+      }
+
+      function removeLessonField(id) {
+        const elem = document.getElementById('lesson-' + id);
+        if (elem) elem.remove();
+      }
+
+      function pickThumbnail() {
+        alert('Vui lòng:\n1. Mở Google Drive\n2. Click chuột phải vào file\n3. Chọn "Get link"\n4. Copy link và paste vào ô bên trên');
+      }
+
+      function pickVideo(lessonId) {
+        alert('Vui lòng:\n1. Mở Google Drive\n2. Click chuột phải vào file video\n3. Chọn "Get link"\n4. Copy link và paste vào ô Video của Bài học ' + lessonId);
+      }
+
+      function pickMaterial(lessonId) {
+        alert('Vui lòng:\n1. Mở Google Drive\n2. Click chuột phải vào file tài liệu\n3. Chọn "Get link"\n4. Copy link và paste vào ô Tài liệu của Bài học ' + lessonId);
+      }
+
+      document.getElementById('formAddCourse').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const courseName = document.getElementById('courseName').value.trim();
+        const courseDesc = document.getElementById('courseDesc').value.trim();
+        const thumbnail = document.getElementById('courseThumbnail').value.trim();
+
+        const lessonItems = document.querySelectorAll('.lesson-item');
+        const lessons = [];
+
+        lessonItems.forEach(function (item) {
+          const name = item.querySelector('.lesson-name').value.trim();
+          const video = item.querySelector('.lesson-video').value.trim();
+          const material = item.querySelector('.lesson-material').value.trim();
+
+          if (name) {
+            lessons.push({
+              name: name,
+              video: video,
+              material: material
+            });
+          }
+        });
+
+        if (lessons.length === 0) {
+          document.getElementById('modalMsg').innerHTML =
+            '<div class="alert alert-error">Vui lòng thêm ít nhất 1 bài học!</div>';
+          return;
+        }
+
+        const courseData = {
+          courseName: courseName,
+          courseDesc: courseDesc,
+          thumbnail: thumbnail,
+          lessons: lessons
+        };
+
+        document.getElementById('modalMsg').innerHTML =
+          '<div class="alert alert-success">Đang tạo khóa học...</div>';
+
+        try {
+          const result = await callAPI('addCourse', courseData);
+
+          if (result.success) {
+            document.getElementById('modalMsg').innerHTML =
+              '<div class="alert alert-success">' + result.message + '</div>';
+            localCache.clear();
+            setTimeout(function () {
+              closeModalAddCourse();
+              renderHome();
+            }, 2000);
+          } else {
+            document.getElementById('modalMsg').innerHTML =
+              '<div class="alert alert-error">' + result.message + '</div>';
+          }
+        } catch (error) {
+          document.getElementById('modalMsg').innerHTML =
+            '<div class="alert alert-error">Lỗi: ' + error + '</div>';
+        }
+      });
+
+      document.getElementById('modalAddCourse').addEventListener('click', function (e) {
+        if (e.target === this) {
+          closeModalAddCourse();
+        }
+      });
+
+      document.getElementById('modalEditCourse').addEventListener('click', function (e) {
+        if (e.target === this) {
+          closeModalEditCourse();
+        }
+      });
+
+      // ========== QUICK ADD ==========
+      function openModalQuickAdd() {
+        document.getElementById('modalQuickAdd').classList.add('active');
+        document.getElementById('formQuickAdd').reset();
+        document.getElementById('quickAddMsg').innerHTML = '';
+      }
+
+      function closeModalQuickAdd() {
+        document.getElementById('modalQuickAdd').classList.remove('active');
+      }
+
+      document.getElementById('formQuickAdd').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const folderUrl = document.getElementById('quickFolderUrl').value.trim();
+        const courseDesc = document.getElementById('quickCourseDesc').value.trim();
+        const msgDiv = document.getElementById('quickAddMsg');
+
+        if (!folderUrl) {
+          msgDiv.innerHTML = '<div class="alert alert-error">Vui lòng nhập link folder!</div>';
+          return;
+        }
+
+        msgDiv.innerHTML = '<div class="alert alert-success">⏳ Đang quét folder...</div>';
+
+        try {
+          const result = await callAPI('quickAddCourseFromFolder', { folderUrl, courseDesc });
+
+          if (result.success) {
+            msgDiv.innerHTML =
+              '<div class="alert alert-success">' +
+              '<strong>✅ ' + result.message + '</strong><br>' +
+              (result.details ?
+                '<div style="margin-top:8px;font-size:13px;">' +
+                '• Khóa học: ' + result.details.courseName + '<br>' +
+                '• Số bài học: ' + result.details.lessonsCount +
+                '</div>' : '') +
+              '</div>';
+
+            localCache.clear();
+
+            setTimeout(function () {
+              closeModalQuickAdd();
+              renderHome();
+            }, 3000);
+          } else {
+            msgDiv.innerHTML = '<div class="alert alert-error">❌ ' + result.message + '</div>';
+          }
+        } catch (error) {
+          msgDiv.innerHTML = '<div class="alert alert-error">❌ Lỗi: ' + error + '</div>';
+        }
+      });
+
+      document.getElementById('modalQuickAdd').addEventListener('click', function (e) {
+        if (e.target === this) {
+          closeModalQuickAdd();
+        }
+      });
+
+      // ========== ADD STUDENT ==========
+      function openModalAddStudent(courseName, event) {
+        if (event) event.stopPropagation();
+        document.getElementById('modalAddStudent').classList.add('active');
+        document.getElementById('addStudentCourseName').value = courseName;
+        document.getElementById('lblCourseName').textContent = courseName;
+        document.getElementById('listEmails').value = '';
+        document.getElementById('addStudentMsg').innerHTML = '';
+      }
+
+      function closeModalAddStudent() {
+        document.getElementById('modalAddStudent').classList.remove('active');
+      }
+
+      document.getElementById('formAddStudent').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const courseName = document.getElementById('addStudentCourseName').value;
+        const emails = document.getElementById('listEmails').value;
+        const msgDiv = document.getElementById('addStudentMsg');
+
+        if (!emails.trim()) {
+          msgDiv.innerHTML = '<div class="alert alert-error">Vui lòng nhập email!</div>';
+          return;
+        }
+
+        msgDiv.innerHTML = '<div class="alert alert-success">⏳ Đang xử lý...</div>';
+
+        try {
+          const result = await callAPI('addStudentsToCourse', { courseName, emails });
+          if (result.success) {
+            msgDiv.innerHTML = '<div class="alert alert-success">✅ ' + result.message + '</div>';
+            setTimeout(() => closeModalAddStudent(), 2000);
+          } else {
+            msgDiv.innerHTML = '<div class="alert alert-error">' + result.message + '</div>';
+          }
+        } catch (error) {
+          msgDiv.innerHTML = '<div class="alert alert-error">Lỗi: ' + error + '</div>';
+        }
+      });
+
+      document.getElementById('modalAddStudent').addEventListener('click', function (e) {
+        if (e.target === this) closeModalAddStudent();
+      });
+
+      // ========== RENDER HOME ==========
+      async function renderHome() {
+        state.view = 'home';
+        showLoading();
+        app.innerHTML = '<div class="topbar">' +
+          '<div class="topbar-left">' +
+          '<h2>KHÓA HỌC</h2>' +
+          '<div class="live-badge"><div class="live-dot"></div>LIVE</div>' +
+          '</div>' +
+          '<div class="topbar-right">' +
+          '<span class="user-info">👤 ' + escapeHtml(state.user.name) + '</span>' +
+          '<button class="btn btn-logout" onclick="logout()">Đăng xuất</button>' +
+          '</div>' +
+          '</div><div id="homeGrid" class="grid"></div>';
+
+        console.log('🔴 Fetching courses from Sheet (Real-Time Mode)...');
+
+        try {
+          const courses = await callAPI('getHomeData');
+          console.log('✅ Courses loaded:', courses.length, 'items');
+          renderCourseGrid(courses);
+          hideLoading();
+        } catch (error) {
+          hideLoading();
+          app.innerHTML = '<div style="color:#ff4444;text-align:center;margin-top:100px;font-weight:700;">Lỗi: ' + error + '</div>';
+        }
+
+        checkTeacherPermission();
+      }
+
+      function renderCourseGrid(courses) {
+        const grid = document.getElementById('homeGrid');
+        if (!grid) return;
+
+        // Lấy danh sách khóa học được phép truy cập
+        let allowed = [];
+        if (state.user && state.user.allowedCourses) {
+          allowed = state.user.allowedCourses.split(',').map(s => s.trim());
+        }
+
+        const fragment = document.createDocumentFragment();
+        courses.forEach(function (c) {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.dataset.course = c.courseName;
+
+          // Kiểm tra quyền: Admin/Teacher thấy hết, User thường thì check list
+          const isAllowed = isTeacher || allowed.includes(c.courseName);
+
+          let overlay = '';
+          if (!isAllowed) {
+            card.classList.add('locked');
+            overlay = '<div class="locked-overlay"><div class="locked-icon">🔒</div><div>CHƯA MỞ KHÓA</div></div>';
+          }
+
+          const thumb = c.thumbnailUrl
+            ? '<img class="thumb" src="' + toImgUrl(c.thumbnailUrl) + '" loading="lazy" />'
+            : '<div class="thumb"></div>';
+
+          const actions = isTeacher ?
+            '<div class="course-actions">' +
+            '<div class="btn-icon" onclick="openModalAddStudent(\'' + escapeHtml(c.courseName).replace(/'/g, "\\'") + '\', event)" title="Thêm học viên">👤+</div>' +
+            '<div class="btn-icon btn-refresh" onclick="refreshCourseConfirm(\'' + escapeHtml(c.courseName).replace(/'/g, "\\'") + '\', event)" title="Refresh khóa học">🔄</div>' +
+            '<div class="btn-icon btn-edit" onclick="openEditCourse(\'' + escapeHtml(c.courseName).replace(/'/g, "\\'") + '\', event)" title="Chỉnh sửa">✏️</div>' +
+            '<div class="btn-icon btn-delete" onclick="deleteCourseConfirm(\'' + escapeHtml(c.courseName).replace(/'/g, "\\'") + '\', event)" title="Xóa">🗑️</div>' +
+            '</div>' : '';
+
+          card.innerHTML = overlay + thumb + actions +
+            '<h3>' + escapeHtml(c.courseName) + '</h3>' +
+            '<div class="muted">' + escapeHtml(c.courseDesc || 'Khám phá nội dung khóa học') + '</div>';
+
+          card.addEventListener('click', function (e) {
+            if (!e.target.closest('.course-actions')) {
+              if (isAllowed) {
+                openCourse(c.courseName);
+              } else {
+                // alert('Bạn chưa đăng ký khóa học này!'); 
+                // Locked cards have pointer-events: none, so this click might not trigger,
+                // but checking logic is safe.
+              }
+            }
+          });
+
+          fragment.appendChild(card);
+        });
+
+        grid.innerHTML = '';
+        grid.appendChild(fragment);
+      }
+
+      async function openCourse(courseName) {
+        showLoading();
+        state.view = 'course';
+        state.course = courseName;
+        state.lesson = null;
+        setUrl({ course: courseName });
+
+        app.innerHTML = '<div class="topbar">' +
+          '<div class="topbar-left">' +
+          '<button class="btn" id="backBtn">← Trang chủ</button>' +
+          '<h2>' + escapeHtml(courseName) + '</h2>' +
+          '</div>' +
+          '<div class="topbar-right">' +
+          '<span class="user-info">👤 ' + escapeHtml(state.user.name) + '</span>' +
+          '<button class="btn btn-logout" onclick="logout()">Đăng xuất</button>' +
+          '</div>' +
+          '</div>' +
+          '<div id="courseDesc" class="muted"></div>' +
+          '<h3>BÀI HỌC</h3>' +
+          '<div id="lessonGrid" class="lesson-grid"></div>';
+
+        document.getElementById('backBtn').onclick = function () {
+          state = { view: 'home', user: state.user };
+          setUrl({});
+          renderHome();
+        };
+
+        const cacheKey = 'course_' + courseName;
+        const cached = localCache.get(cacheKey);
+        if (cached) {
+          renderCourseContent(cached);
+          hideLoading();
+          if (isTeacher) updateTopbarWithTeacherBtn();
+          return;
+        }
+
+        try {
+          const data = await callAPI('getCourseData', { courseName });
+          localCache.set(cacheKey, data, 180);
+          renderCourseContent(data);
+          hideLoading();
+        } catch (error) {
+          hideLoading();
+          alert('Lỗi: ' + error);
+        }
+
+        if (isTeacher) updateTopbarWithTeacherBtn();
+      }
+
+      function renderCourseContent(data) {
+        document.getElementById('courseDesc').textContent = data.courseDesc || 'Chọn bài học để bắt đầu';
+        const grid = document.getElementById('lessonGrid');
+        if (!grid) return;
+
+        const fragment = document.createDocumentFragment();
+        data.lessons.forEach(function (ls) {
+          const lessonDiv = document.createElement('div');
+          lessonDiv.className = 'lesson';
+          lessonDiv.dataset.idx = ls.index;
+          lessonDiv.innerHTML =
+            '<div class="muted">BÀI ' + ls.index + '</div>' +
+            '<div>' + escapeHtml(ls.lessonName) + '</div>';
+
+          lessonDiv.addEventListener('click', function () {
+            openLesson(data.courseName, ls.index);
+          });
+
+          fragment.appendChild(lessonDiv);
+        });
+
+        grid.innerHTML = '';
+        grid.appendChild(fragment);
+      }
+
+      async function openLesson(courseName, lessonIndex) {
+        showLoading();
+        state.view = 'lesson';
+        state.course = courseName;
+        state.lesson = lessonIndex;
+        setUrl({ course: courseName, lesson: lessonIndex });
+
+        app.innerHTML = '<div class="topbar">' +
+          '<div class="topbar-left">' +
+          '<button class="btn" id="backCourseBtn">← Danh sách bài</button>' +
+          '<h2>' + escapeHtml(courseName) + ' - BÀI ' + lessonIndex + '</h2>' +
+          '</div>' +
+          '<div class="topbar-right">' +
+          '<span class="user-info">👤 ' + escapeHtml(state.user.name) + '</span>' +
+          '<button class="btn btn-logout" onclick="logout()">Đăng xuất</button>' +
+          '</div>' +
+          '</div>' +
+          '<div id="playerWrap"></div>' +
+          '<div style="margin-top:24px" id="materials"></div>';
+
+        document.getElementById('backCourseBtn').onclick = function () { openCourse(courseName); };
+
+        const cacheKey = 'course_' + courseName;
+        const cached = localCache.get(cacheKey);
+        if (cached) {
+          renderLessonContent(cached, lessonIndex);
+          hideLoading();
+          if (isTeacher) updateTopbarWithTeacherBtn();
+          return;
+        }
+
+        try {
+          const data = await callAPI('getCourseData', { courseName });
+          localCache.set(cacheKey, data, 180);
+          renderLessonContent(data, lessonIndex);
+          hideLoading();
+        } catch (error) {
+          hideLoading();
+          alert('Lỗi: ' + error);
+        }
+
+        if (isTeacher) updateTopbarWithTeacherBtn();
+      }
+
+      function renderLessonContent(data, lessonIndex) {
+        const lesson = data.lessons.find(function (x) { return x.index === lessonIndex; });
+        const playerWrap = document.getElementById('playerWrap');
+
+        warningCount = 0;
+        devToolsDetected = false;
+        blurCount = 0;
+
+        if (lesson && lesson.videoEmbedUrl) {
+          const secureUrl = lesson.videoEmbedUrl + '?rm=minimal';
+          const watermarkText = state.user.email + ' | ' + new Date().toLocaleDateString('vi-VN');
+
+          playerWrap.innerHTML =
+            '<div class="video-controls-blocker"></div>' +
+            '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
+            'font-size:36px;color:rgba(255,255,255,0.12);font-weight:900;pointer-events:none;' +
+            'z-index:5;user-select:none;white-space:nowrap;text-transform:uppercase;letter-spacing:2px;">' +
+            escapeHtml(watermarkText) + '</div>' +
+            '<div class="video-security-notice">🔒 Nội dung được bảo vệ</div>' +
+            '<iframe src="' + secureUrl + '" allow="autoplay; encrypted-media" ' +
+            'sandbox="allow-scripts allow-same-origin allow-presentation" allowfullscreen></iframe>';
+
+          playerWrap.oncontextmenu = function (e) {
+            e.preventDefault();
+            return false;
+          };
+          playerWrap.onselectstart = function () { return false; };
+
+        } else {
+          playerWrap.innerHTML = '<div class="muted" style="padding: 40px; text-align: center; background: var(--brand-card); border-radius: 16px;">Chưa có link video cho bài này.</div>';
+        }
+
+        const mat = document.getElementById('materials');
+        if (lesson && lesson.materialUrl) {
+          const lines = lesson.materialUrl.split('\n');
+          let html = '<h3>TÀI LIỆU</h3><div style="display:flex;flex-direction:column;gap:12px;">';
+
+          lines.forEach((line, idx) => {
+            if (!line.trim()) return;
+
+            let name = 'Tải tài liệu';
+            if (lines.length > 1) name += ' ' + (idx + 1);
+            let url = line.trim();
+
+            // Parse format "Tên File|URL"
+            if (line.includes('|')) {
+              const parts = line.split('|');
+              name = parts[0].trim();
+              url = parts[1].trim();
+            }
+
+            // Chỉ hiển thị nếu có URL
+            if (url.startsWith('http')) {
+              html += '<a href="' + url + '" target="_blank" rel="noreferrer">📥 ' + escapeHtml(name) + '</a>';
+            }
+          });
+
+          html += '</div>';
+          mat.innerHTML = html;
+        } else {
+          mat.innerHTML = '<div class="muted" style="margin-top: 40px;">Không có tài liệu cho bài học này.</div>';
+        }
+      }
+
+      function toImgUrl(driveUrl) {
+        const id = (driveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1];
+        if (!id) return driveUrl;
+        return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w400';
+      }
+
+      function escapeHtml(s) {
+        return String(s || '').replace(/[&<>"']/g, function (m) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+        });
+      }
+
+      // Init
+      if (checkAuth()) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialCourse = urlParams.get('course');
+        const initialLesson = parseInt(urlParams.get('lesson')) || 0;
+
+        if (initialCourse) {
+          if (initialLesson > 0) {
+            openLesson(initialCourse, initialLesson);
+          } else {
+            openCourse(initialCourse);
+          }
+        } else {
+          renderHome();
+        }
+      } else {
+        renderLogin();
+      }
+    </script>
+
+</body>
+
+</html>

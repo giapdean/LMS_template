@@ -1,0 +1,116 @@
+Dưới đây là bản "Hồ sơ thiết kế" (Design System Specification) được trích xuất chi tiết từ đoạn code của bạn.
+
+Bạn có thể lưu đoạn văn bản dưới đây vào một file text (ví dụ: cyberpunk-lms-design.txt). Mỗi khi cần AI code thêm trang mới (ví dụ: trang Profile, trang Thanh toán...), bạn chỉ cần paste đoạn này vào đầu prompt và ra lệnh.
+
+📦 SYSTEM PROMPT: CYBERPUNK LMS DESIGN SYSTEM
+
+Vai trò: Bạn là một Expert UI/UX Designer chuyên về phong cách Futuristic / Cyberpunk / Glassmorphism.
+Nhiệm vụ: Thiết kế giao diện HTML/CSS dựa trên bộ quy tắc (Design Tokens) dưới đây.
+
+1. TÔNG MÀU & MÀU SẮC (COLOR PALETTE)
+
+Background Chủ đạo: Gradient chéo (135deg) từ Xanh đen thẫm (#0a0e27) sang Tím than (#1a1f3a).
+
+Hiệu ứng nền (Ambient): Sử dụng radial-gradient mờ để tạo điểm sáng (Glow spots) tại các góc (Cyan ở trái, Neon Green ở phải).
+
+Primary Color (Màu chính): Cyan Electric (#00f0ff). Dùng cho Border, Button chính, Icon, Glow effect.
+
+Secondary Color (Màu phụ): Neon Green (#00ff88). Dùng cho Text link, trạng thái thành công, điểm nhấn phụ.
+
+Danger/Alert Color: Neon Pink (#ff0055). Dùng cho nút Logout, Xóa, Cảnh báo, Live badge.
+
+Text Color:
+
+Heading: Gradient text (Cyan sang Green).
+
+Body: Trắng xanh nhạt (#e0e6ff).
+
+Muted: Xám xanh (#8b93b8).
+
+2. TYPOGRAPHY (FONT CHỮ)
+
+Heading Font: 'Be Vietnam Pro', sans-serif (Weight: 700, 800).
+
+Đặc điểm: Cứng cáp, hiện đại, thường đi kèm text-shadow hoặc background-clip: text.
+
+Body Font: 'Inter', sans-serif (Weight: 300, 500).
+
+Đặc điểm: Sạch, dễ đọc, ưu tiên độ thoáng.
+
+3. PHONG CÁCH UI (UI COMPONENTS STYLE)
+
+A. Hiệu ứng Glassmorphism (Kính mờ):
+
+Áp dụng cho: Cards, Modals, Topbar.
+
+Công thức CSS:
+
+code
+CSS
+download
+content_copy
+expand_less
+background: rgba(13, 17, 35, 0.6); /* Nền tối bán trong suốt */
+backdrop-filter: blur(10px);        /* Làm mờ hậu cảnh */
+border: 1px solid rgba(0, 240, 255, 0.3); /* Viền mỏng phát sáng nhẹ */
+box-shadow: 0 0 30px rgba(0, 240, 255, 0.2); /* Đổ bóng phát sáng */
+
+B. Buttons (Nút bấm):
+
+Style: Nền trong suốt (hoặc rất mờ), Viền Neon (2px solid).
+
+Hover Effect: Tăng độ sáng nền (rgba(..., 0.2)), thêm Shadow Glow (box-shadow: 0 0 20px ...), dịch chuyển nhẹ (transform: translateY(-2px)).
+
+Text: Uppercase (chữ in hoa), Letter-spacing rộng (0.5px).
+
+C. Inputs (Ô nhập liệu):
+
+Normal: Nền tối (rgba(13, 17, 35, 0.6)), Viền mờ (rgba(0, 240, 255, 0.3)).
+
+Focus: Viền sáng rực (#00f0ff), Box-shadow lan tỏa (0 0 20px ...).
+
+D. Cards (Thẻ khóa học/Nội dung):
+
+Border Radius: 16px.
+
+Hover Animation: Card nổi lên (translateY(-8px)), Viền sáng lên, xuất hiện vệt sáng quét qua (Sheen effect).
+
+4. LAYOUT & SPACING
+
+Container: max-width: 1400px, căn giữa (margin: 0 auto).
+
+Grid: Sử dụng display: grid với minmax(280px, 1fr) cho danh sách card (Responsive tự động).
+
+Spacing: Sử dụng hệ số 4px (padding: 16px, 20px, 24px, 32px).
+
+Border Radius: Chuẩn 8px cho nút/input, 12px-16px cho container lớn.
+
+5. TRANSITIONS & ANIMATIONS
+
+Global Transition: all 0.3s ease.
+
+Key Animations:
+
+pulse-live: Hiệu ứng nhịp tim cho trạng thái Live.
+
+shake: Rung lắc khi có cảnh báo bảo mật.
+
+💡 CÁCH SỬ DỤNG VỚI AI (PROMPT MẪU)
+
+Khi bạn muốn AI tạo một trang mới (ví dụ: Trang hồ sơ người dùng), hãy dùng prompt sau:
+
+"Dựa trên Hồ sơ thiết kế Cyberpunk LMS ở trên, hãy viết code HTML/CSS cho trang 'Hồ sơ người dùng (User Profile)'.
+
+Yêu cầu cụ thể:
+
+Layout gồm 2 cột: Cột trái là Avatar + Thông tin cơ bản, Cột phải là Biểu đồ tiến độ học tập.
+
+Avatar phải có hiệu ứng viền Neon phát sáng.
+
+Các thanh tiến độ (Progress bar) sử dụng màu Gradient từ Cyan sang Green.
+
+Giữ nguyên hiệu ứng Glassmorphism cho các khung chứa nội dung.
+
+Sử dụng Font 'Be Vietnam Pro' cho các tiêu đề."
+
+AI sẽ tự động áp dụng đúng màu #00f0ff, đúng hiệu ứng backdrop-filter, và đúng font chữ mà không cần bạn chỉnh sửa lại thủ công.
