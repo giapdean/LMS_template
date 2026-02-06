@@ -3531,7 +3531,7 @@
           <!-- Settings & Configuration -->
           <div class="stat-card" style="margin-bottom:24px; padding:20px; flex-direction:row; align-items:center; gap:20px; flex-wrap:wrap">
              <div style="flex:1; min-width:300px">
-                <h3 style="margin:0 0 6px 0; font-size:16px; color:white">Email Configuration</h3>
+                <h3 style="margin:0 0 6px 0; font-size:16px; color:white">Email Configuration <span style="font-size:11px;color:#22c55e">(v2.2 Debug)</span></h3>
                 <div style="font-size:13px; color:var(--text-muted)">Cấu hình thư mục Google Drive để lưu ảnh khi upload trong editor.</div>
              </div>
              <div style="flex:2; display:flex; gap:12px; min-width:300px">
@@ -3540,7 +3540,7 @@
                    <input type="text" id="settingDriveFolder" class="form-input" placeholder="https://drive.google.com/drive/folders/..." style="background:var(--bg-800)">
                 </div>
                 <div style="display:flex; align-items:flex-end">
-                   <button class="btn" onclick="saveEmailConfiguration()" style="background:var(--bg-700);border:1px solid var(--border)">
+                   <button class="btn" onclick="handleSaveEmailConfig()" style="background:var(--bg-700);border:1px solid var(--border)">
                       <i data-lucide="save" style="width:14px;margin-right:6px"></i> Save Config
                    </button>
                 </div>
@@ -6944,10 +6944,18 @@
       } catch (e) { console.error('Error loading config:', e); }
     }
 
-    // Save email settings
-    async function saveEmailConfiguration() {
-      const folderUrl = document.getElementById('settingDriveFolder').value.trim();
-      const senderName = document.getElementById('emailSenderName').value.trim();
+    // Save email settings (Renamed to bust cache)
+    async function handleSaveEmailConfig() {
+      const folderEl = document.getElementById('settingDriveFolder');
+      const senderEl = document.getElementById('emailSenderName');
+
+      const folderUrl = folderEl ? folderEl.value.trim() : "";
+      const senderName = senderEl ? senderEl.value.trim() : "";
+
+      // DEBUG POPUP
+      alert('DEBUG CHECK v2.2:\nFolder Value: "' + folderUrl + '"\n(Nếu trống -> Lỗi đọc Input)');
+
+      console.log('🔍 [EmailMkt] Try Saving Config.', { folderUrl, senderName });
 
       if (!folderUrl) {
         showToast('Vui lòng nhập Link Folder Drive!', 'warning');
@@ -6956,22 +6964,29 @@
 
       showToast('Đang lưu cấu hình...', 'info');
       try {
+        const payload = {
+          driveFolderId: folderUrl,
+          defaultSenderName: senderName
+        };
+        console.log('🔍 [EmailMkt] Sending Payload:', payload);
+
         const res = await callAPI('saveEmailSettings', {
-          settings: {
-            driveFolderId: folderUrl,
-            defaultSenderName: senderName
-          }
+          settings: payload
         });
 
         if (res.success) {
           showToast(res.message, 'success');
-          if (res.folderId && document.getElementById('settingDriveFolder')) {
-            document.getElementById('settingDriveFolder').value = res.folderId;
+          if (res.folderId && folderEl) {
+            folderEl.value = res.folderId;
           }
         } else {
           showToast(res.message, 'error');
+          console.error('❌ [EmailMkt] Backend Error:', res);
         }
-      } catch (e) { console.error(e); showToast('Lỗi lưu cấu hình', 'error'); }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Frontend Error:', e);
+        showToast('Lỗi lưu cấu hình: ' + e.toString(), 'error');
+      }
     }
 
     // Handle Image Upload from Quill
