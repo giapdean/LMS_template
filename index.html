@@ -3539,6 +3539,14 @@
                    <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Google Drive Folder URL (For Images)</label>
                    <input type="text" id="settingDriveFolder_v3" class="form-input" placeholder="https://drive.google.com/drive/folders/..." style="background:var(--bg-800)">
                 </div>
+                <div style="flex:1">
+                   <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Email Header Title</label>
+                   <input type="text" id="settingEmailHeader" class="form-input" placeholder="LMS SYSTEM" style="background:var(--bg-800)">
+                </div>
+                <div style="flex:1">
+                   <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Email Footer Text</label>
+                   <input type="text" id="settingEmailFooter" class="form-input" placeholder="Vibe Code dễ mà???" style="background:var(--bg-800)">
+                </div>
                 <div style="display:flex; align-items:flex-end">
                    <button class="btn" onclick="handleSaveEmailConfig()" style="background:var(--bg-700);border:1px solid var(--border)">
                       <i data-lucide="save" style="width:14px;margin-right:6px"></i> Save Config
@@ -6931,9 +6939,14 @@
         const res = await callAPI('getEmailSettings');
         if (res.success) {
           const driveInput = document.getElementById('settingDriveFolder_v3');
+          const headerInput = document.getElementById('settingEmailHeader');
+          const footerInput = document.getElementById('settingEmailFooter');
           const senderInput = document.getElementById('emailSenderName');
 
           if (driveInput) driveInput.value = res.settings.driveFolderId || '';
+          if (headerInput) headerInput.value = res.settings.emailHeader || 'LMS SYSTEM';
+          if (footerInput) footerInput.value = res.settings.emailFooter || 'Designed with ❤️ by Vibe Code';
+
           // Only set sender if empty or default
           if (senderInput && res.settings.defaultSenderName && senderInput.value === 'AZ English Academy') {
             senderInput.value = res.settings.defaultSenderName;
@@ -6948,15 +6961,19 @@
     async function handleSaveEmailConfig() {
       console.log('🔥 [EmailMkt v2.2] Button Clicked!');
       const folderEl = document.getElementById('settingDriveFolder_v3');
+      const headerEl = document.getElementById('settingEmailHeader');
+      const footerEl = document.getElementById('settingEmailFooter');
       const senderEl = document.getElementById('emailSenderName');
 
       const folderUrl = folderEl ? folderEl.value.trim() : "";
+      const headerText = headerEl ? headerEl.value.trim() : "LMS SYSTEM";
+      const footerText = footerEl ? footerEl.value.trim() : "Designed with ❤️ by Vibe Code";
       const senderName = senderEl ? senderEl.value.trim() : "";
 
       // DEBUG POPUP
-      alert('DEBUG CHECK v2.2:\nFolder Value: "' + folderUrl + '"\nInput ID: settingDriveFolder_v3\n(Nếu trống -> Lỗi đọc Input)');
+      // alert('DEBUG CHECK v2.2:\nFolder Value: "' + folderUrl + '"');
 
-      console.log('🔍 [EmailMkt] Try Saving Config.', { folderUrl, senderName });
+      console.log('🔍 [EmailMkt] Try Saving Config.', { folderUrl, headerText, footerText, senderName });
 
       if (!folderUrl) {
         showToast('Vui lòng nhập Link Folder Drive!', 'warning');
@@ -6967,6 +6984,8 @@
       try {
         const payload = {
           driveFolderId: folderUrl,
+          emailHeader: headerText,
+          emailFooter: footerText,
           defaultSenderName: senderName
         };
         console.log('🔍 [EmailMkt] Sending Payload:', payload);
