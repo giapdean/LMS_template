@@ -65,3 +65,11 @@ Sau khi deploy xong, Agent **PHẢI** báo cáo lại thông tin version cho Use
    > - **Git SHA:** [Kết quả rev-parse]
    > - **GAS ID:** AKfuc... (Verified)
 
+### 🔴 Lỗi: "Báo cáo thành công nhưng trên Git vẫn là SHA cũ?" (Lỗi BỊA KẾT QUẢ)
+- **Nguyên nhân:** Agent lấy SHA ở máy Local (`git rev-parse`) để báo cáo TRƯỚC khi lệnh `git push` chạy xong hoặc khi `git push` bị lỗi.
+- **Hệ quả:** Người dùng nhận báo cáo "Success" nhưng thực tế code chưa lên.
+- **Giải pháp:**
+  - **BẮT BUỘC** chờ lệnh `git push` chạy xong hoàn toàn (không chạy background async quá ngắn).
+  - Chỉ báo cáo khi `git push` không có dòng `error`.
+  - Nếu `git push` lỗi -> Báo **FAILED** ngay lập tức.
+

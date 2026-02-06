@@ -158,7 +158,11 @@ function doPost(e) {
         result = getEmailSettings();
         break;
       case 'saveEmailSettings':
-        result = saveEmailSettings(data.settings);
+        var settingsObj = data.settings;
+        if (typeof settingsObj === 'string') {
+          try { settingsObj = JSON.parse(settingsObj); } catch(e) {}
+        }
+        result = saveEmailSettings(settingsObj);
         break;
       case 'uploadImageToDrive':
         result = uploadImageToDrive(data.base64Data, data.fileName);
