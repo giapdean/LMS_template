@@ -13,23 +13,28 @@ Mỗi khi thực hiện code một tính năng mới hoặc fix bug, BẮT BUỘ
 
 ## 2. Thực hiện Code (Implementation)
 1.  Viết code logic chính.
-2.  **🚨 QUAN TRỌNG: Thêm Debug Log**
-    -   **Log Input:** Log dữ liệu đầu vào của hàm/API.
+2.  **🚨 QUAN TRỌNG: Thêm Debug Log (Granular Stepping)**
+    *Nguyên tắc: "Log từng nhịp thở của code". Không chỉ Log Input/Output mà phải Log cả quá trình biến đổi.*
+    
+    -   **STEP 1 - Input:** Log ngay dòng đầu tiên của hàm.
         ```javascript
-        console.log('🔍 [FeatureName] Input:', { param1, param2 });
+        console.log('🔍 [Feature] 1. Fn Start. Input:', { rawData });
         ```
-    -   **Log Process:** Log các bước xử lý quan trọng (nếu logic phức tạp).
+    -   **STEP 2 - Transformation:** Log sau mỗi lần biến đổi dữ liệu (Split, Parsed, Calculate).
         ```javascript
-        console.log('🔍 [FeatureName] Processing step X...', data);
+        const id = url.split('/')[5];
+        console.log('🔍 [Feature] 2. Parsed ID:', id); // <-- BẮT BUỘC
         ```
-    -   **Log Output:** Log kết quả trả về hoặc dữ liệu cuối cùng.
+    -   **STEP 3 - Logic Branch:** Log trong các `if/else`, `for`.
         ```javascript
-        console.log('✅ [FeatureName] Success:', result);
+        if (!id) console.log('❌ [Feature] ID Missing!');
+        else console.log('✅ [Feature] ID Valid. Proceeding...');
         ```
-    -   **Log Error:** Luôn bọc `try-catch` ở các điểm rủi ro và log lỗi chi tiết.
+    -   **STEP 4 - Output:** Log kết quả cuối cùng trước khi return.
         ```javascript
-        console.error('❌ [FeatureName] Error:', error);
+        console.log('✅ [Feature] 4. Fn End. Result:', result);
         ```
+    -   **LƯU Ý:** Với logic phức tạp (ví dụ Form -> API -> Update), phải log dây chuyền để User chụp ảnh là thấy ngay lỗi ở bước nào.
 
 ## 3. Kiểm tra & Verify (Theo chuẩn verify-code)
 1.  **Kiểm tra Logic Flow (Early Return):**

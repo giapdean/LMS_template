@@ -4,6 +4,7 @@
 const SHEET_NAME = 'Courses';
 const SHEET_USERS = 'Users';
 const SHEET_PROGRESS = 'Progress';
+const EMAIL_TRACKING_SHEET = 'EmailTrackingLogs';
 
 // ==========================================
 // 1. MAIN API HANDLER (ĐIỂM TIẾP NHẬN YÊU CẦU)
@@ -188,6 +189,37 @@ function testEmail() {
 }
 
 function doGet(e) {
+  // 1. TRACKING PIXEL HANDLER
+  if (e.parameter && e.parameter.method === 'track_open') {
+    const cid = e.parameter.cid;
+    const emailEncoded = e.parameter.email;
+    
+    // Log the open event (Async-like)
+    if (cid && emailEncoded) {
+       // Decode email? (Best practice: keep it encoded or hash it, but here we likely store base64 or raw)
+       // Let's assume passed as base64 to be safe in URL, decode here
+       let email = emailEncoded;
+       try {
+         email = Utilities.newBlob(Utilities.base64Decode(emailEncoded)).getDataAsString();
+       } catch(err) { /* ignore */ }
+       
+       logTrackingEvent(cid, email);
+    }
+
+    // Return 1x1 Transparent PNG
+    const pixel = Utilities.base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=');
+    return ContentService
+      .createTextOutput(pixel) // Won't work directly as image in GAS without setMimeType weirdness
+      // Better approach for GAS Pixel:
+      // return ContentService.createTextOutput("").setMimeType(ContentService.MimeType.JAVASCRIPT); 
+      // BUT to actually show image, we need to return blob? No, GAS `doGet` cannot return raw image binary easily to modern Gmail.
+      // TRICK: Return a TextOutput? No.
+      // PROVEN METHOD: Use Utilities.base64Decode and return Blob?
+      // Actually, for tracking, we usually just need the request to hit. Gmail proxies images.
+      // Let's allow it to fail image load but log the hit.
+      // Revision: just return text. Gmail proxy will hit it.
+  }
+  
   return ContentService
     .createTextOutput("✅ LMS API đang hoạt động!")
     .setMimeType(ContentService.MimeType.TEXT);
@@ -2531,6 +2563,13 @@ function sendBatchEmail(filterType, senderName, subject, bodyTemplate, excludedE
   console.log('🔍 [EmailMkt] sendBatchEmail started:', { campaignID, filterType, excludedEmails });
   
   try {
+    // 0. Load Email Settings first
+    const emailSettingsRes = getEmailSettings();
+    const emailSettings = {
+       header: emailSettingsRes.settings?.emailHeader,
+       footer: emailSettingsRes.settings?.emailFooter
+    };
+
     const users = getAllStudents().students;
     let targetEmails = [];
     
@@ -2546,7 +2585,24 @@ function sendBatchEmail(filterType, senderName, subject, bodyTemplate, excludedE
     }
     
     // Filter out excluded emails
-    const excludedSet = new Set((excludedEmails || []).map(e => e.toLowerCase()));
+    let excludedList = excludedEmails || [];
+    
+    // Safety: Handle if string (JSON or comma-separated)
+    if (typeof excludedList === 'string') {
+       try {
+          excludedList = JSON.parse(excludedList);
+       } catch(e) {
+          // If not JSON, maybe comma separated?
+          excludedList = excludedList.split(',').map(e => e.trim());
+       }
+    }
+    
+    // Safety: Handle if still not array (e.g. object?)
+    if (!Array.isArray(excludedList)) {
+       excludedList = [];
+    }
+
+    const excludedSet = new Set(excludedList.map(e => String(e).toLowerCase()));
     const filteredEmails = targetEmails.filter(u => !excludedSet.has(u.email.toLowerCase()));
     
     console.log('🔍 [EmailMkt] After exclusion:', { original: targetEmails.length, filtered: filteredEmails.length, excluded: excludedSet.size });
@@ -2567,7 +2623,30 @@ function sendBatchEmail(filterType, senderName, subject, bodyTemplate, excludedE
     // Gửi email loop
     for (const user of filteredEmails) {
       let personalizedBody = bodyTemplate.replace(/{{name}}/g, user.name || 'Bạn');
-      personalizedBody = fixQuillHtmlForEmail(personalizedBody);
+      // Load settings inside loop or pass them in? Better to pass in.
+      // But for simplicity, we'll assume sendBatchEmail receives these or fetches them?
+      // Wait, sendBatchEmail doesn't have the settings yet. Let's fetch them once at start.
+      // (Correcting Approach: Fetch settings at start of sendBatchEmail)
+      
+      personalizedBody = wrapEmailContent(personalizedBody, subject, emailSettings.header, emailSettings.footer);
+      
+      // --- TRACKING PIXEL INJECTION ---
+      try {
+         const scriptUrl = ScriptApp.getService().getUrl();
+         // Encode email to Base64 to be URL-safe and slightly private
+         const emailB64 = Utilities.base64Encode(user.email);
+         const pixelUrl = `${scriptUrl}?method=track_open&cid=${campaignID}&email=${emailB64}`;
+         
+         // Append 1x1 image at the end of body (inside the main wrapper or after)
+         // Check if body has closing div
+         if (personalizedBody.includes('</div>')) {
+            // Insert before last div close? Or just append.
+            // Appending to end is safest.
+            personalizedBody += `<img src="${pixelUrl}" width="1" height="1" style="display:none !important;" alt="" />`;
+         }
+      } catch(e) { console.error('Pixel Gen Error', e); }
+      // --------------------------------
+      
       
       try {
         MailApp.sendEmail({
@@ -2584,23 +2663,24 @@ function sendBatchEmail(filterType, senderName, subject, bodyTemplate, excludedE
       }
     }
     
-    // Log campaign to sheet
+    // 4. Log Campaign
     logEmailCampaign({
       campaignID: campaignID,
-      timestamp: timestamp,
       subject: subject,
       filterType: filterType,
       totalRecipients: filteredEmails.length,
       successCount: sentCount,
-      failedCount: failedCount
+      failedCount: failedCount,
+      folderId: emailSettings.driveFolderId,
+      // Pass Header/Footer for logging
+      header: emailSettings.header,
+      footer: emailSettings.footer
     });
     
-    console.log('✅ [EmailMkt] Campaign completed:', { campaignID, sentCount, failedCount });
-    
-    return { 
-      success: true, 
+    return {
+      success: true,
       campaignID: campaignID,
-      message: `Đã gửi thành công ${sentCount}/${filteredEmails.length} email.`,
+      message: `Đã gửi xong. Thành công: ${sentCount}, Thất bại: ${failedCount}`,
       stats: { sentCount, failedCount, total: filteredEmails.length }
     };
     
@@ -2670,23 +2750,62 @@ function runAutoReminder() {
 const EMAIL_CAMPAIGNS_SHEET = 'EmailCampaigns';
 
 // Helper: Fix Quill HTML for email clients (reset margins, handle line breaks)
-function fixQuillHtmlForEmail(html) {
-  // Step 1: Replace empty paragraphs with single <br>
-  let fixed = html.replace(/<p><br><\/p>/g, '<br>');
-  fixed = fixed.replace(/<p><br\/><\/p>/g, '<br>');
-  
-  // Step 2: Wrap in styled container with inline CSS
-  const emailWrapper = `
-    <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
-      <style>
-        p { margin: 0 0 8px 0 !important; }
-        img { max-width: 100%; height: auto; display: block; margin: 8px 0; }
-      </style>
-      ${fixed}
+// Helper: Wrap Email Content in Techcom-style Template
+// Helper: Wrap Email Content in Techcom-style Template (Rich Header/Footer Support)
+function wrapEmailContent(html, title, headerTitle, footerText) {
+  // Helper to fix images in any HTML string
+  const fixImages = (str) => {
+    if (!str) return '';
+    return str.replace(/<img([^>]*)>/g, (match, attrs) => {
+      if (attrs.includes('style="')) {
+         return `<img${attrs.replace('style="', 'style="max-width: 100%; height: auto; display: block; margin: 0 auto; ')}>`;
+      } else {
+         return `<img${attrs} style="max-width: 100%; height: auto; display: block; margin: 0 auto;">`;
+      }
+    });
+  };
+
+  // 1. Fix empty lines in Body
+  let fixedBody = html.replace(/<p><br><\/p>/g, '<br>').replace(/<p><br\/><\/p>/g, '<br>');
+  fixedBody = fixImages(fixedBody);
+
+  // 2. Process Header & Footer (Fix images + Default values)
+  let displayHeader = headerTitle || 'LMS SYSTEM'; // Default text if empty
+  // If it's just plain text (no tags), wrap in H1 for backward compatibility? 
+  // Better: Just assume HTML. If users typed "LMS", Quill wraps it in <p>.
+  displayHeader = fixImages(displayHeader);
+
+  let displayFooter = footerText || 'Designed with ❤️ by Vibe Code';
+  displayFooter = fixImages(displayFooter);
+
+  // 3. Full HTML Template
+  // Header Container: 600x150px fixed, Overflow Hidden.
+  return `
+    <div style="background-color: #f3f4f6; padding: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        
+        <!-- Header (Fixed 150px Height) -->
+        <div style="width: 100%; height: 150px; overflow: hidden; background-color: #ffffff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: center;">
+          <div style="width: 100%; text-align: center;">
+             ${displayHeader}
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 32px 24px; color: #1f2937; line-height: 1.6; font-size: 16px;">
+          ${fixedBody}
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 16px; text-align: center; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb;">
+          <div style="margin-bottom: 8px;">
+            ${displayFooter}
+          </div>
+          <p style="margin: 0; opacity: 0.7;">© ${new Date().getFullYear()} LMS System. All rights reserved.</p>
+        </div>
+      </div>
     </div>
   `;
-  
-  return emailWrapper;
 }
 
 // =====================================================
@@ -2701,16 +2820,20 @@ function getEmailSettings() {
     const sheet = ss.getSheetByName('EmailCampaigns');
     if (!sheet) return { success: false, message: 'Sheet EmailCampaigns not found' };
 
-    const folderId = sheet.getRange('I2').getValue();
+    const folderId = sheet.getRange('J2').getValue();
+    const emailHeader = sheet.getRange('K2').getValue();
+    const emailFooter = sheet.getRange('L2').getValue();
     const props = PropertiesService.getScriptProperties();
     const defaultSender = props.getProperty('EMAIL_DEFAULT_SENDER') || 'LMS System';
 
-    console.log('✅ [EmailMkt] Settings loaded from Sheet I2:', folderId);
+    console.log('✅ [EmailMkt] Settings loaded from Sheet J2-L2:', folderId);
 
     return { 
       success: true, 
       settings: {
         driveFolderId: folderId,
+        emailHeader: emailHeader,
+        emailFooter: emailFooter,
         defaultSenderName: defaultSender
       }
     };
@@ -2720,7 +2843,7 @@ function getEmailSettings() {
   }
 }
 
-// Save Email Settings to Sheet (I2)
+// Save Email Settings to Sheet (J2, K2, L2)
 function saveEmailSettings(settings) {
   var input = "undefined";
   var folderId = "";
@@ -2780,12 +2903,14 @@ function saveEmailSettings(settings) {
       };
     }
     
-    // Save to Sheet I2
+    // Save to Sheet I2, I3, I4
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('EmailCampaigns');
     if (sheet) {
-      sheet.getRange('I2').setValue(folderId);
-      addLog("✅ Đã lưu ID vào ô I2 Sheet 'EmailCampaigns'.");
+      sheet.getRange('J2').setValue(folderId); // Folder_Image
+      sheet.getRange('K2').setValue(settings.emailHeader || 'LMS SYSTEM'); // Header_HTML
+      sheet.getRange('L2').setValue(settings.emailFooter || 'Designed with ❤️ by Vibe Code'); // Footer_HTML
+      addLog("✅ Đã lưu Cấu hình (ID, Header, Footer) vào Sheet EmailCampaigns (Row 2).");
     } else {
        addLog("⚠️ Không tìm thấy Sheet 'EmailCampaigns' để lưu.");
     }
@@ -2843,8 +2968,10 @@ function uploadImageToDrive(base64Data, fileName) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     
     // Get direct image URL (convert drive link to direct embed)
+    // Get direct image URL (Use Thumbnail API for reliable embedding)
     const fileId = file.getId();
-    const directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+    // sz=w1600 requests high-res image (up to 1600px width)
+    const directUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
     
     console.log('✅ [EmailMkt] Image uploaded:', directUrl);
     return { success: true, url: directUrl, fileId: fileId };
@@ -2931,18 +3058,26 @@ function logEmailCampaign(data) {
     
     if (!sh) {
       sh = ss.insertSheet(EMAIL_CAMPAIGNS_SHEET);
-      sh.appendRow(['CampaignID', 'Timestamp', 'Subject', 'FilterType', 'TotalRecipients', 'SuccessCount', 'FailedCount', 'Status']);
+      sh.appendRow(['CampaignID', 'Timestamp', 'Subject', 'FilterType', 'TotalRecipients', 'SuccessCount', 'FailedCount', 'OpenCount', 'Email_Open', 'Folder_Image', 'Header_HTML', 'Footer_HTML']);
     }
     
+    const timestamp = new Date().toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'});
+    
+    // Column Structure (v2.4 - User Request):
+    // ... H: OpenCount, I: Email_Open, J: Folder_Image, K: Header_HTML, L: Footer_HTML
     sh.appendRow([
       data.campaignID,
-      data.timestamp,
+      timestamp,
       data.subject,
       data.filterType,
       data.totalRecipients,
       data.successCount,
       data.failedCount,
-      'Sent'
+      0, // H: OpenCount Initial
+      '', // I: Email_Open Initial
+      data.folderId || '', // J: Folder_Image
+      data.header || '',   // K: Header_HTML
+      data.footer || ''    // L: Footer_HTML
     ]);
     
     console.log('✅ [EmailMkt] Campaign logged:', data.campaignID);
@@ -2957,6 +3092,13 @@ function logEmailCampaign(data) {
 function getRecipientPreview(filterType) {
   console.log('🔍 [EmailMkt] getRecipientPreview:', filterType);
   try {
+    // 0. Load Email Settings first
+    const emailSettingsRes = getEmailSettings();
+    const emailSettings = {
+       header: emailSettingsRes.settings?.emailHeader,
+       footer: emailSettingsRes.settings?.emailFooter
+    };
+
     const users = getAllStudents().students;
     let recipients = [];
     
@@ -2990,9 +3132,14 @@ function sendTestEmail(testEmail, senderName, subject, bodyTemplate) {
     
     // Replace {{name}} with "Test User"
     let personalizedBody = bodyTemplate.replace(/{{name}}/g, 'Test User');
+
+    // Load Settings dynamic
+    const emailSettingsRes = getEmailSettings();
+    const headerTitle = emailSettingsRes.settings?.emailHeader || 'LMS SYSTEM';
+    const footerText = emailSettingsRes.settings?.emailFooter || 'Designed with ❤️ by Vibe Code';
     
-    // Fix Quill HTML: Convert empty paragraphs to line breaks, reset margins
-    personalizedBody = fixQuillHtmlForEmail(personalizedBody);
+    // Wraps with Techcom-style template
+    personalizedBody = wrapEmailContent(personalizedBody, subject, headerTitle, footerText);
     
     const fromName = senderName || 'LMS System';
     
@@ -3013,4 +3160,256 @@ function sendTestEmail(testEmail, senderName, subject, bodyTemplate) {
     return { success: false, message: e.toString() };
   }
 }
+
+// ==========================================
+// 5. HELPER AUTH FUNCTION (Run this manually in Editor)
+// ==========================================
+function doManualAuthCheck() {
+  console.log('🔍 Starting Auth Check...');
+  try {
+    // 1. Check Read
+    const root = DriveApp.getRootFolder();
+    console.log('✅ Read Permission OK. Root: ' + root.getName());
+    
+    // 2. Check Write (Create temp file)
+    const tempFile = root.createFile('LMS_Auth_Test.txt', 'This is a test file to verify Drive Write permissions.');
+    console.log('✅ Write Permission OK. Created file: ' + tempFile.getName());
+    
+    // Cleanup
+    tempFile.setTrashed(true);
+    console.log('✅ Cleanup OK.');
+    
+  } catch (e) {
+    console.error('❌ Auth Check Failed:', e);
+  }
+}
+
+// 6. Log Tracking Events (Open Rate)
+function logTrackingEvent(cid, email) {
+  // Use LockService to prevent concurrency issues
+  const lock = LockService.getScriptLock();
+  try {
+    // Wait for up to 5 seconds for other processes to finish
+    lock.waitLock(5000); 
+  } catch (e) {
+    console.error('⚠️ [Tracking] Could not get lock, skipping log:', email);
+    return;
+  }
+
+  try {
+    const ss = SpreadsheetApp.getActive();
+    let sh = ss.getSheetByName(EMAIL_TRACKING_SHEET);
+    if (!sh) {
+      sh = ss.insertSheet(EMAIL_TRACKING_SHEET);
+      sh.appendRow(['Timestamp', 'CampaignID', 'Email', 'UserAgent']); // Header
+    }
+    
+    const timestamp = new Date().toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'});
+    sh.appendRow([timestamp, cid, email, 'Unknown']);
+    console.log('👀 [Tracking] Open Recorded:', email);
+    
+    // --- SYNC TO PRO MAIN SHEET (User Request) ---
+    // Update 'EmailCampaigns' sheet Col I (Email_Open) and Col H (OpenCount)
+    const campSheet = ss.getSheetByName(EMAIL_CAMPAIGNS_SHEET);
+    if (campSheet) {
+        const campData = campSheet.getDataRange().getValues();
+        // Find row by Campaign ID (Col A -> Index 0)
+        // Skip header (row 1 is header, data starts row 2 -> index 1)
+        for(let i = 1; i < campData.length; i++) {
+            if(String(campData[i][0]) === String(cid)) {
+                const rowIndex = i + 1; // 1-based index
+                
+                // Get current values
+                let currentCount = Number(campData[i][7]); // Col H (Index 7)
+                if(isNaN(currentCount)) currentCount = 0;
+                
+                let currentEmails = String(campData[i][8] || ''); // Col I (Index 8)
+                
+                // Check if email already exists in list
+                if(!currentEmails.includes(email)) {
+                   const newEmails = currentEmails ? currentEmails + ', ' + email : email;
+                   const newCount = currentCount + 1;
+                   
+                   // Update Cell I (9) and H (8)
+                   campSheet.getRange(rowIndex, 9).setValue(newEmails); // Col I
+                   campSheet.getRange(rowIndex, 8).setValue(newCount);  // Col H
+                   console.log('✅ [Tracking] Synced to Campaign Sheet:', cid);
+                }
+                break; 
+            }
+        }
+    }
+  } catch(e) {
+    console.error('❌ [Tracking] Log Error:', e);
+  } finally {
+    // Always release lock
+    lock.releaseLock();
+  }
+}
+
+function getEmailStats() {
+   // Phase 2: Aggregate Stats from Sheets
+   const ss = SpreadsheetApp.getActive();
+   
+   // 1. Get Campaigns
+   const campSheet = ss.getSheetByName(EMAIL_CAMPAIGNS_SHEET);
+   const campData = campSheet ? campSheet.getDataRange().getValues() : [];
+   if(campData.length > 0) campData.shift(); // Remove Header
+   
+   // 2. Get Tracking Logs
+   const trackSheet = ss.getSheetByName(EMAIL_TRACKING_SHEET);
+   const trackData = trackSheet ? trackSheet.getDataRange().getValues() : [];
+   if(trackData.length > 0) trackData.shift(); // Remove Header
+   
+   // 3. Process Data
+   let totalSent = 0;
+   let sentToday = 0;
+   
+   // Robust Date Comparison
+   const now = new Date();
+   const todayCheck = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+   
+   console.log('🔍 [Stats] Raw Campaign Data Length:', campData.length);
+
+   const reports = [];
+   let totalOpenRateSum = 0;
+   let campaignCount = 0;
+   
+   campData.forEach((row, i) => {
+       // row structure (v2.3):
+       // [0:ID, 1:Time, 2:Subject, 3:Type, 4:Total, 5:Success, 6:Failed, 7:OpenCount, 8:Email_Open, 9:Folder_Image]
+       
+       const timeStr = String(row[1]);
+       const campaignTime = new Date(timeStr).getTime();
+       
+       // Count Sent Today
+       if(!isNaN(campaignTime)) {
+           const rowDate = new Date(campaignTime);
+           if(rowDate.getDate() === now.getDate() && 
+              rowDate.getMonth() === now.getMonth() && 
+              rowDate.getFullYear() === now.getFullYear()) {
+               sentToday += Number(row[5] || 0); // Success column
+           }
+       }
+       
+       const sent = Number(row[5] || 0);
+       totalSent += sent;
+       
+       const cid = row[0];
+       // USE PRE-CALCULATED COUNT FROM COL H (Index 7)
+       // Safety: Old rows might have "Sent" string -> Number("Sent") is NaN
+       let uniqueOpens = Number(row[7]);
+       if (isNaN(uniqueOpens)) uniqueOpens = 0; 
+       
+       const rate = sent > 0 ? (uniqueOpens / sent) * 100 : 0;
+       
+       if(sent > 0) {
+           totalOpenRateSum += rate;
+           campaignCount++;
+       }
+       
+       reports.push({
+           id: cid,
+           time: row[1],
+           subject: row[2],
+           recipientCount: sent,
+           openCount: uniqueOpens,
+           openRate: rate.toFixed(1)
+       });
+   });
+   
+   const avgRate = campaignCount > 0 ? (totalOpenRateSum / campaignCount).toFixed(1) : 0;
+   const quota = MailApp.getRemainingDailyQuota();
+   
+   console.log('✅ [Stats] Finish:', { totalSent, sentToday, avgRate });
+
+   return {
+       success: true,
+       // Dashboard Stats
+       totalAllTime: totalSent,
+       sentToday: sentToday,
+       remainingQuota: quota,
+       avgOpenRate: avgRate,
+       // Campaign List
+       campaigns: reports.reverse()
+   };
+}
+
+// 4. Get Viewers for Specific Campaign
+// 4. Get Viewers for Specific Campaign (From EmailCampaigns Sheet)
+function getCampaignViewers(payload) {
+    console.log('🔍 [Viewers] Request Payload:', JSON.stringify(payload));
+    
+    let campaignId = payload;
+    if (typeof payload === 'object' && payload !== null) {
+        if (payload.campaignId) campaignId = payload.campaignId;
+    }
+    
+    campaignId = String(campaignId || '').trim();
+    console.log('🔍 [Viewers] Target Campaign ID:', campaignId);
+
+    const ss = SpreadsheetApp.getActive();
+    
+    // NEW LOGIC: Read from 'EmailCampaigns' sheet directly
+    const sheet = ss.getSheetByName('EmailCampaigns');
+    if (!sheet) {
+        console.error('❌ [Viewers] Sheet EmailCampaigns not found!');
+        return { success: false, message: 'Sheet EmailCampaigns missing' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    console.log('🔍 [Viewers] Total Rows in EmailCampaigns:', data.length);
+
+    // Find the row with matching Campaign ID (Column A index 0)
+    let foundRow = null;
+    for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]).trim() === campaignId) {
+            foundRow = data[i];
+            console.log('✅ [Viewers] Found Match at Row:', i + 1);
+            break;
+        }
+    }
+
+    if (!foundRow) {
+        console.warn('⚠️ [Viewers] Campaign ID not found in sheet:', campaignId);
+        return { success: true, viewers: [] };
+    }
+
+    // Column I (Email_Open) is Index 8
+    // Check older "safe" logic in case column moved? No, standard is index 8 based on user feedback.
+    // Wait, earlier I confirmed I is index 8.
+    const rawEmails = foundRow[8]; 
+    console.log('🔍 [Viewers] Raw Data in Column I (Index 8):', rawEmails);
+
+    if (!rawEmails || String(rawEmails).trim() === '') {
+         console.log('ℹ️ [Viewers] No opens recorded yet.');
+         return { success: true, viewers: [] };
+    }
+
+    // Split by comma
+    const emailList = String(rawEmails).split(',').map(e => e.trim()).filter(e => e !== '');
+    console.log('🔍 [Viewers] Parsed Emails:', emailList);
+
+    // Format for frontend (mimic old structure with lastOpen)
+    const formattedViewers = emailList.map(email => ({
+        email: email,
+        lastOpen: 'Recent' // Since we don't store timestamp in this simple list, use placeholder
+    }));
+
+    return { success: true, viewers: formattedViewers };
+}
+
+
+// ==========================================
+// 6. FORCE AUTH (Nuclear Option)
+// ==========================================
+function forceAuth() {
+  console.log('🚀 Triggering Auth Dialog...');
+  // Gọi trực tiếp không try-catch để ép hệ thống hiện bảng quyền
+  DriveApp.getRootFolder();
+  DriveApp.createFile('Temp_Auth_Force.txt', 'test');
+  MailApp.getRemainingDailyQuota(); // Trigger Mail Permission
+  console.log('✅ Auth OK!');
+}
+
 
