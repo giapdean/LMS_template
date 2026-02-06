@@ -3336,6 +3336,9 @@
       // Load initial preview
       await loadRecipientPreview();
 
+      // Load Email Configuration (Drive Folder, etc.)
+      await loadEmailConfiguration();
+
       // Initialize Quill Rich Text Editor
       initEmailEditor();
     }
@@ -3353,14 +3356,23 @@
         theme: 'snow',
         placeholder: 'Hi {{name}},\n\nNội dung email của bạn...',
         modules: {
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['link', 'image'],
-            ['clean']
-          ]
+          toolbar: {
+            container: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline', 'strike'],
+              [{ 'color': [] }, { 'background': [] }],
+              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+              ['link', 'image'],
+              ['clean']
+            ],
+            handlers: {
+              'image': function () {
+                // Custom image handler: trigger file input
+                const fileInput = document.getElementById('quillImageInput');
+                if (fileInput) fileInput.click();
+              }
+            }
+          }
         }
       });
 
@@ -3516,6 +3528,28 @@
              </div>
           </div>
           
+          <!-- Settings & Configuration -->
+          <div class="stat-card" style="margin-bottom:24px; padding:20px; flex-direction:row; align-items:center; gap:20px; flex-wrap:wrap">
+             <div style="flex:1; min-width:300px">
+                <h3 style="margin:0 0 6px 0; font-size:16px; color:white">Email Configuration</h3>
+                <div style="font-size:13px; color:var(--text-muted)">Cấu hình thư mục Google Drive để lưu ảnh khi upload trong editor.</div>
+             </div>
+             <div style="flex:2; display:flex; gap:12px; min-width:300px">
+                <div style="flex:1">
+                   <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Google Drive Folder URL (For Images)</label>
+                   <input type="text" id="settingDriveFolder" class="form-input" placeholder="https://drive.google.com/drive/folders/..." style="background:var(--bg-800)">
+                </div>
+                <div style="display:flex; align-items:flex-end">
+                   <button class="btn" onclick="saveEmailConfiguration()" style="background:var(--bg-700);border:1px solid var(--border)">
+                      <i data-lucide="save" style="width:14px;margin-right:6px"></i> Save Config
+                   </button>
+                </div>
+             </div>
+          </div>
+          
+          <!-- Hidden File Input for Quill -->
+          <input type="file" id="quillImageInput" style="display:none" accept="image/*" onchange="handleQuillImageUpload(this)">
+
           <div style="display:grid;grid-template-columns:1fr 320px;gap:24px">
             <!-- Left: Campaign Form -->
             <div class="stat-card">
@@ -6887,6 +6921,109 @@
         msgDiv.innerHTML = '<div class="alert alert-error">Lỗi: ' + error + '</div>';
       }
     });
+    // ==========================================
+    // EMAIL CONFIGURATION & IMAGE UPLOAD LOGIC
+    // ==========================================
+
+    // Load email settings
+    async function loadEmailConfiguration() {
+      try {
+        const res = await callAPI('getEmailSettings', {});
+        if (res.success && res.settings) {
+          const driveInput = document.getElementById('settingDriveFolder');
+          const senderInput = document.getElementById('emailSenderName');
+
+          if (driveInput) driveInput.value = res.settings.driveFolderId || '';
+          // Only set sender if empty or default
+          if (senderInput && res.settings.defaultSenderName && senderInput.value === 'AZ English Academy') {
+            senderInput.value = res.settings.defaultSenderName;
+          }
+
+          console.log('✅ [EmailMkt] Config loaded');
+        }
+      } catch (e) { console.error('Error loading config:', e); }
+    }
+
+    // Save email settings
+    async function saveEmailConfiguration() {
+      const folderUrl = document.getElementById('settingDriveFolder').value.trim();
+      const senderName = document.getElementById('emailSenderName').value.trim();
+
+      if (!folderUrl) {
+        showToast('Vui lòng nhập Link Folder Drive!', 'warning');
+        return;
+      }
+
+      showToast('Đang lưu cấu hình...', 'info');
+      try {
+        const res = await callAPI('saveEmailSettings', {
+          settings: {
+            driveFolderId: folderUrl,
+            defaultSenderName: senderName
+          }
+        });
+
+        if (res.success) {
+          showToast(res.message, 'success');
+          if (res.folderId && document.getElementById('settingDriveFolder')) {
+            document.getElementById('settingDriveFolder').value = res.folderId;
+          }
+        } else {
+          showToast(res.message, 'error');
+        }
+      } catch (e) { console.error(e); showToast('Lỗi lưu cấu hình', 'error'); }
+    }
+
+    // Handle Image Upload from Quill
+    async function handleQuillImageUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      // Check file type/size
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('Ảnh quá lớn (>5MB). Vui lòng chọn ảnh nhỏ hơn.', 'warning');
+        return;
+      }
+
+      showToast('Đang upload ảnh lên Drive...', 'info');
+
+      // Show loading placeholder in Quill
+      const range = quillEditor.getSelection(true);
+      if (range) {
+        quillEditor.insertText(range.index, '...Uploading Image...', 'bold', true);
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function (e) {
+        const base64Data = e.target.result;
+
+        try {
+          const res = await callAPI('uploadImageToDrive', {
+            base64Data: base64Data,
+            fileName: file.name
+          });
+
+          // Remove placeholder
+          if (range) quillEditor.deleteText(range.index, 21);
+
+          if (res.success) {
+            // Insert image with direct URL
+            quillEditor.insertEmbed(range ? range.index : 0, 'image', res.url);
+            showToast('Upload ảnh thành công!', 'success');
+          } else {
+            showToast(res.message, 'error');
+          }
+        } catch (err) {
+          if (range) quillEditor.deleteText(range.index, 21);
+          console.error('Upload Error:', err);
+          showToast('Lỗi upload ảnh: ' + err.message, 'error');
+        }
+
+        // Reset input
+        input.value = '';
+      };
+      reader.readAsDataURL(file);
+    }
   </script>
 </body>
 
