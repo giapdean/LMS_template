@@ -3458,6 +3458,7 @@
 
     // Open Detail Modal
     async function openCampaignDetail(cid) {
+      console.log('🔍 [Frontend] openCampaignDetail called with CID:', cid);
       if (!document.getElementById('modalCampaignDetail')) {
         createCampaignDetailModal();
       }
@@ -3466,13 +3467,18 @@
       container.innerHTML = '<div style="padding:20px;text-align:center">Loading viewers...</div>';
 
       try {
+        console.log('🚀 [Frontend] Calling API getCampaignViewers...');
         const res = await callAPI('getCampaignViewers', { campaignId: cid });
+        console.log('✅ [Frontend] API Response:', res);
+
         if (res.success) {
           renderDetailViewers(res.viewers);
         } else {
-          container.innerHTML = 'Error loading details.';
+          console.error('❌ [Frontend] API returned success:false', res.message);
+          container.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">Error: ${res.message || 'Unknown error'}</div>`;
         }
       } catch (e) {
+        console.error('❌ [Frontend] Exception:', e);
         container.innerHTML = 'Error: ' + e.message;
       }
     }
