@@ -12,6 +12,9 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Quill.js Rich Text Editor -->
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
   <style>
     /* ================= DEEP DARK + GLASSMORPHISM DESIGN SYSTEM ================= */
 
@@ -86,6 +89,65 @@
 
     ::-webkit-scrollbar-thumb:hover {
       background: var(--border-light);
+    }
+
+    /* Quill Editor Dark Theme Override */
+    .ql-toolbar.ql-snow {
+      background: var(--bg-800);
+      border-color: var(--border);
+      border-radius: 8px 8px 0 0;
+    }
+
+    .ql-container.ql-snow {
+      border-color: var(--border);
+      border-radius: 0 0 8px 8px;
+    }
+
+    .ql-editor {
+      background: var(--bg-900);
+      color: var(--text-primary);
+      min-height: 150px;
+    }
+
+    .ql-editor.ql-blank::before {
+      color: var(--text-muted);
+      font-style: normal;
+    }
+
+    .ql-snow .ql-stroke {
+      stroke: var(--text-muted);
+    }
+
+    .ql-snow .ql-fill,
+    .ql-snow .ql-stroke.ql-fill {
+      fill: var(--text-muted);
+    }
+
+    .ql-snow.ql-toolbar button:hover .ql-stroke,
+    .ql-snow.ql-toolbar button.ql-active .ql-stroke {
+      stroke: var(--brand-red);
+    }
+
+    .ql-snow.ql-toolbar button:hover .ql-fill,
+    .ql-snow.ql-toolbar button.ql-active .ql-fill {
+      fill: var(--brand-red);
+    }
+
+    .ql-snow .ql-picker-label {
+      color: var(--text-muted);
+    }
+
+    .ql-snow .ql-picker-options {
+      background: var(--bg-800);
+      border-color: var(--border);
+    }
+
+    .ql-snow .ql-picker-item {
+      color: var(--text-primary);
+    }
+
+    .ql-snow .ql-picker-item:hover {
+      color: var(--brand-red);
     }
 
     body {
@@ -2465,7 +2527,7 @@
   <script>
     // ========== CẤU HÌNH API - THAY ĐỔI URL NÀY ==========
     // ========== CẤU HÌNH API - THAY ĐỔI URL NÀY ==========
-    const API_URL = 'https://script.google.com/macros/s/AKfycbyjqXySQ-hPctPGzbAyhuRxQEK-B3f68GFhDu7Chd6iaocn1rcW_yzVbjfsD4qCUvEJnw/exec';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbypp1thCzYNOmdFQI7zBtGBb5NmYHpLTqZvlSu2hdst7Exb9e0TnXD6H3mm5gaduJ2XWQ/exec';
 
     // Helper: Escape HTML (Fix for blank report)
     function escapeHtml(text) {
@@ -2996,7 +3058,7 @@
             <div style="display:flex;align-items:center;gap:12px">
                ${fromCache ? '<span style="color:#888;font-size:12px">⚡ Instant</span>' : '<span style="color:#4ade80;font-size:12px">✨ Fresh</span>'}
                <input type="text" class="search-input" style="width:200px;margin:0" placeholder="Search user..." oninput="filterUserTable(this.value)">
-               <button class="btn-sm" style="background:#22c55e;color:white;border:none" onclick="openModalAddStudent()">
+               <button class="btn-sm" style="background:#22c55e;color:white;border:none" onclick="openModalAddUserDirect()">
                   <i data-lucide="user-plus" style="width:14px;margin-right:4px"></i> Add
                </button>
                <button class="btn-sm btn-red" onclick="loadAdminUsers(true)">🔄 Refresh</button>
@@ -3246,11 +3308,18 @@
       }
     }
 
-    // 6. EMAIL MARKETING & AUTOMATION
+    // 6. EMAIL MARKETING & AUTOMATION - Updated with Analytics
+    let emailRecipients = []; // Global store for recipients
+    let excludedEmails = []; // Emails to exclude
+
     async function loadAdminEmailMarketing() {
+      console.log('🔍 [EmailMkt] Loading Email Marketing tab...');
       const content = document.getElementById('adminContent');
       content.innerHTML = renderEmailMarketingUI();
       if (window.lucide) lucide.createIcons();
+
+      // Load real stats
+      await loadEmailStats();
 
       // Check auto reminder status
       try {
@@ -3260,59 +3329,293 @@
           if (toggle) toggle.checked = res.isActive;
         }
       } catch (e) { console.error(e); }
+
+      // Setup filter change listener
+      document.getElementById('emailFilter').addEventListener('change', loadRecipientPreview);
+
+      // Load initial preview
+      await loadRecipientPreview();
+
+      // Load Email Configuration (Drive Folder, etc.)
+      await loadEmailConfiguration();
+
+      // Initialize Quill Rich Text Editor
+      initEmailEditor();
+    }
+
+    let quillEditor = null;
+    function initEmailEditor() {
+      console.log('🔍 [EmailMkt] Initializing Quill editor...');
+      const container = document.getElementById('emailEditor');
+      if (!container) {
+        console.error('❌ [EmailMkt] emailEditor container not found');
+        return;
+      }
+
+      quillEditor = new Quill('#emailEditor', {
+        theme: 'snow',
+        placeholder: 'Hi {{name}},\n\nNội dung email của bạn...',
+        modules: {
+          toolbar: {
+            container: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline', 'strike'],
+              [{ 'color': [] }, { 'background': [] }],
+              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+              ['link', 'image'],
+              ['clean']
+            ],
+            handlers: {
+              'image': function () {
+                // Custom image handler: trigger file input
+                const fileInput = document.getElementById('quillImageInput');
+                if (fileInput) fileInput.click();
+              }
+            }
+          }
+        }
+      });
+
+      // Set default content
+      quillEditor.root.innerHTML = '<p>Hi {{name}},</p><p><br></p><p>Nội dung email của bạn...</p>';
+
+      console.log('✅ [EmailMkt] Quill editor initialized');
+    }
+
+    function getEmailContent() {
+      if (quillEditor) {
+        return quillEditor.root.innerHTML;
+      }
+      return '';
+    }
+
+    async function loadEmailStats() {
+      console.log('🔍 [EmailMkt] Loading stats...');
+      try {
+        const res = await callAPI('getEmailStats', {});
+        console.log('✅ [EmailMkt] Stats loaded:', res);
+
+        if (res.success) {
+          document.getElementById('statTotalAllTime').textContent = res.totalAllTime || 0;
+          document.getElementById('statSentToday').textContent = res.sentToday || 0;
+          document.getElementById('statQuotaRemaining').textContent = res.remainingQuota || 100;
+
+          // Render campaign history
+          renderCampaignHistory(res.campaigns || []);
+        }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Error loading stats:', e);
+      }
+    }
+
+    async function loadRecipientPreview() {
+      const filterType = document.getElementById('emailFilter').value;
+      console.log('🔍 [EmailMkt] Loading recipient preview for:', filterType);
+
+      const container = document.getElementById('recipientPreviewList');
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</div>';
+
+      try {
+        const res = await callAPI('getRecipientPreview', { filterType });
+        console.log('✅ [EmailMkt] Recipients loaded:', res.total);
+
+        if (res.success) {
+          emailRecipients = res.recipients;
+          excludedEmails = []; // Reset exclusions
+          renderRecipientList(res.recipients);
+          document.getElementById('recipientCount').textContent = res.total;
+        }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Error loading recipients:', e);
+        container.innerHTML = '<div style="color:#ef4444">Error loading recipients</div>';
+      }
+    }
+
+    function renderRecipientList(recipients) {
+      const container = document.getElementById('recipientPreviewList');
+      if (recipients.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">No recipients found</div>';
+        return;
+      }
+
+      let html = '';
+      recipients.forEach((r, i) => {
+        html += `
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--border)">
+            <input type="checkbox" id="recip_${i}" checked onchange="toggleRecipientExclusion('${r.email}', this.checked)" 
+                   style="width:16px;height:16px;cursor:pointer">
+            <div style="flex:1">
+              <div style="font-weight:500;color:var(--text-primary)">${r.name || 'Chưa có tên'}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${r.email}</div>
+            </div>
+            <span class="status-badge status-${r.status === 'Active' ? 'active' : 'pending'}">${r.status}</span>
+          </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function toggleRecipientExclusion(email, isIncluded) {
+      if (isIncluded) {
+        excludedEmails = excludedEmails.filter(e => e !== email);
+      } else {
+        if (!excludedEmails.includes(email)) {
+          excludedEmails.push(email);
+        }
+      }
+      // Update count
+      const remaining = emailRecipients.length - excludedEmails.length;
+      document.getElementById('selectedCount').textContent = remaining;
+      console.log('🔍 [EmailMkt] Excluded emails:', excludedEmails.length, '| Will send to:', remaining);
+    }
+
+    function selectAllRecipients(selectAll) {
+      const checkboxes = document.querySelectorAll('#recipientPreviewList input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        cb.checked = selectAll;
+      });
+      excludedEmails = selectAll ? [] : emailRecipients.map(r => r.email);
+      const remaining = selectAll ? emailRecipients.length : 0;
+      document.getElementById('selectedCount').textContent = remaining;
+    }
+
+    function renderCampaignHistory(campaigns) {
+      const tbody = document.getElementById('campaignHistoryBody');
+      if (!campaigns || campaigns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Chưa có chiến dịch nào</td></tr>';
+        return;
+      }
+
+      let html = '';
+      campaigns.slice(0, 10).forEach(c => {
+        html += `
+          <tr>
+            <td style="padding:12px;color:var(--text-muted);font-size:13px">${c.timestamp || '--'}</td>
+            <td style="padding:12px;color:var(--text-primary)">${c.subject || '--'}</td>
+            <td style="padding:12px;color:var(--text-secondary)">${c.filterType || '--'}</td>
+            <td style="padding:12px"><span style="color:#22c55e">${c.successCount}</span>/${c.totalRecipients}</td>
+            <td style="padding:12px;color:var(--text-muted)">--</td>
+          </tr>`;
+      });
+      tbody.innerHTML = html;
     }
 
     function renderEmailMarketingUI() {
       return `
-        <div style="max-width:800px; margin:0 auto">
+        <div style="max-width:1000px; margin:0 auto">
           <div style="margin-bottom:24px">
             <h2 class="admin-title" style="margin-bottom:8px">Email Marketing & Automation</h2>
             <div style="color:var(--text-muted)">Send announcements or set up automated reminders.</div>
           </div>
 
-          <!-- Quick Stats (Mockup) -->
-          <div class="stats-grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:32px">
+          <!-- Stats Cards (Dynamic) -->
+          <div class="stats-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:32px">
              <div class="stat-card" style="padding:16px">
-                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Emails Sent</div>
-                <div style="font-size:24px;font-weight:700;color:white">0</div>
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Total Sent (All Time)</div>
+                <div id="statTotalAllTime" style="font-size:24px;font-weight:700;color:white">--</div>
              </div>
              <div class="stat-card" style="padding:16px">
-                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Open Rate</div>
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Sent Today</div>
+                <div id="statSentToday" style="font-size:24px;font-weight:700;color:#22c55e">--</div>
+             </div>
+             <div class="stat-card" style="padding:16px">
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Quota Remaining</div>
+                <div id="statQuotaRemaining" style="font-size:24px;font-weight:700;color:#3b82f6">--</div>
+             </div>
+             <div class="stat-card" style="padding:16px">
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Open Rate (Avg)</div>
                 <div style="font-size:24px;font-weight:700;color:var(--warning)">--</div>
-             </div>
-             <div class="stat-card" style="padding:16px">
-                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Active flows</div>
-                <div style="font-size:24px;font-weight:700;color:var(--success)">1</div>
+                <div style="font-size:10px;color:var(--text-muted)">Coming soon</div>
              </div>
           </div>
           
-          <!-- Create Campaign -->
-          <div class="stat-card">
-             <div style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center">
-                <h3 style="margin:0; font-size:18px; color:white">New Campaign</h3>
-                <span class="status-badge status-active">Daily Limit: 100</span>
+          <!-- Settings & Configuration -->
+          <div class="stat-card" style="margin-bottom:24px; padding:20px; flex-direction:row; align-items:center; gap:20px; flex-wrap:wrap">
+             <div style="flex:1; min-width:300px">
+                <h3 style="margin:0 0 6px 0; font-size:16px; color:white">Email Configuration <span style="font-size:11px;color:#22c55e">(v2.2 Debug)</span></h3>
+                <div style="font-size:13px; color:var(--text-muted)">Cấu hình thư mục Google Drive để lưu ảnh khi upload trong editor.</div>
              </div>
-             <div class="form-group">
-                <label class="form-label">Send to</label>
-                <select id="emailFilter" class="form-input" style="background:var(--bg-900)">
-                   <option value="all">All Students</option>
-                   <option value="active">Active Students</option>
-                   <option value="pending">Pending Approval</option>
-                   <!-- <option value="inactive">Inactive (>7 days)</option> -->
-                </select>
+             <div style="flex:2; display:flex; gap:12px; min-width:300px">
+                <div style="flex:1">
+                   <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Google Drive Folder URL (For Images)</label>
+                   <input type="text" id="settingDriveFolder_v3" class="form-input" placeholder="https://drive.google.com/drive/folders/..." style="background:var(--bg-800)">
+                </div>
+                <div style="display:flex; align-items:flex-end">
+                   <button class="btn" onclick="handleSaveEmailConfig()" style="background:var(--bg-700);border:1px solid var(--border)">
+                      <i data-lucide="save" style="width:14px;margin-right:6px"></i> Save Config
+                   </button>
+                </div>
              </div>
-             <div class="form-group">
-                <label class="form-label">Subject</label>
-                <input type="text" id="emailSubject" class="form-input" placeholder="e.g. Course Update: New Lesson Available">
-             </div>
-             <div class="form-group">
-                <label class="form-label">Message</label>
-                <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px">Variable: <code>{{name}}</code> will be replaced by user's name.</div>
-                <textarea id="emailBody" class="form-input" rows="6" placeholder="Hi {{name}}, ..."></textarea>
-             </div>
-             <button class="btn btn-red" onclick="handleSendBatchEmail()" id="btnSendMail" style="width:100%; justify-content:center">
-                <i data-lucide="send" style="width:16px; margin-right:8px"></i> Send Campaign
-             </button>
+          </div>
+          
+          <!-- Hidden File Input for Quill -->
+          <input type="file" id="quillImageInput" style="display:none" accept="image/*" onchange="handleQuillImageUpload(this)">
+
+          <div style="display:grid;grid-template-columns:1fr 320px;gap:24px">
+            <!-- Left: Campaign Form -->
+            <div class="stat-card">
+               <div style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center">
+                  <h3 style="margin:0; font-size:18px; color:white">New Campaign</h3>
+               </div>
+               
+               <!-- Test Email Section -->
+               <div style="background:var(--bg-900);border-radius:8px;padding:16px;margin-bottom:20px;border:1px solid var(--border)">
+                  <div style="display:flex;gap:12px;align-items:flex-end">
+                     <div style="flex:1">
+                        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">Test Email (Send test before launching)</label>
+                        <input type="email" id="testEmailInput" class="form-input" placeholder="your@email.com" style="background:var(--bg-800)">
+                     </div>
+                     <button class="btn" onclick="handleSendTestEmail()" style="background:var(--bg-700);border:1px solid var(--border);white-space:nowrap">
+                        <i data-lucide="mail-check" style="width:14px;margin-right:6px"></i> Send Test
+                     </button>
+                  </div>
+               </div>
+               
+               <div class="form-group">
+                  <label class="form-label">Send to</label>
+                  <select id="emailFilter" class="form-input" style="background:var(--bg-900)">
+                     <option value="all">All Students</option>
+                     <option value="active">Active Students</option>
+                     <option value="pending">Pending Approval</option>
+                  </select>
+               </div>
+               <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                  <div class="form-group" style="margin-bottom:0">
+                     <label class="form-label">Tên người gửi</label>
+                     <input type="text" id="emailSenderName" class="form-input" placeholder="VD: AZ English Academy" value="AZ English Academy">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                     <label class="form-label">Subject</label>
+                     <input type="text" id="emailSubject" class="form-input" placeholder="e.g. Course Update: New Lesson Available">
+                  </div>
+               </div>
+               <div class="form-group" style="margin-top:16px">
+                  <label class="form-label">Nội dung email</label>
+                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px">Variable: <code>{{name}}</code> sẽ thay bằng tên người nhận. Có thể thêm ảnh, định dạng chữ.</div>
+                  <div id="emailEditorContainer" style="background:var(--bg-900);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                     <div id="emailEditor" style="height:200px;color:var(--text-primary)"></div>
+                  </div>
+               </div>
+               <button class="btn btn-red" onclick="handleSendBatchEmail()" id="btnSendMail" style="width:100%; justify-content:center">
+                  <i data-lucide="send" style="width:16px; margin-right:8px"></i> Send Campaign (<span id="selectedCount">0</span> recipients)
+               </button>
+            </div>
+            
+            <!-- Right: Recipient Preview -->
+            <div class="stat-card" style="padding:0;display:flex;flex-direction:column;max-height:500px">
+               <div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                     <h4 style="margin:0;font-size:14px;color:white">Recipients</h4>
+                     <div style="font-size:12px;color:var(--text-muted)"><span id="recipientCount">0</span> users in list</div>
+                  </div>
+                  <div style="display:flex;gap:8px">
+                     <button class="btn-sm" style="font-size:11px;padding:4px 8px" onclick="selectAllRecipients(true)">Select All</button>
+                     <button class="btn-sm" style="font-size:11px;padding:4px 8px;background:transparent;border:1px solid var(--border)" onclick="selectAllRecipients(false)">Deselect</button>
+                  </div>
+               </div>
+               <div id="recipientPreviewList" style="flex:1;overflow-y:auto">
+                  <div style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</div>
+               </div>
+            </div>
           </div>
 
           <!-- Automation -->
@@ -3333,21 +3636,86 @@
                #autoReminderToggle:checked + .slider .slider-thumb { transform: translateX(24px); }
              </style>
           </div>
+          
+          <!-- Campaign History -->
+          <div class="stat-card" style="margin-top:24px;">
+             <div style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px">
+                <h3 style="margin:0; font-size:18px; color:white">Campaign History</h3>
+             </div>
+             <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse">
+                   <thead>
+                      <tr style="border-bottom:1px solid var(--border)">
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Date</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Subject</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Filter</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Sent</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Open Rate</th>
+                      </tr>
+                   </thead>
+                   <tbody id="campaignHistoryBody">
+                      <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading...</td></tr>
+                   </tbody>
+                </table>
+             </div>
+          </div>
         </div>
       `;
     }
 
-    async function handleSendBatchEmail() {
-      const filter = document.getElementById('emailFilter').value;
+    async function handleSendTestEmail() {
+      const testEmail = document.getElementById('testEmailInput').value;
+      const senderName = document.getElementById('emailSenderName').value || 'LMS System';
       const subject = document.getElementById('emailSubject').value;
-      const body = document.getElementById('emailBody').value;
+      const body = getEmailContent();
 
-      if (!subject || !body) {
-        showToast('Please fill all fields', 'warning');
+      if (!testEmail) {
+        showToast('Vui lòng nhập email để test', 'warning');
+        return;
+      }
+      if (!subject || !body || body === '<p><br></p>') {
+        showToast('Vui lòng nhập Subject và Nội dung email trước', 'warning');
         return;
       }
 
-      if (!confirm(`Send email to [${filter.toUpperCase()}] users? This cannot be undone.`)) return;
+      console.log('🔍 [EmailMkt] Sending test email to:', testEmail, 'from:', senderName);
+      showToast('Đang gửi test email...', 'info');
+
+      try {
+        const res = await callAPI('sendTestEmail', { testEmail, senderName, subject, bodyTemplate: body });
+        console.log('✅ [EmailMkt] Test email result:', res);
+
+        if (res.success) {
+          showToast(res.message, 'success');
+        } else {
+          showToast(res.message, 'error');
+        }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Test email error:', e);
+        showToast('Error: ' + e.message, 'error');
+      }
+    }
+
+    async function handleSendBatchEmail() {
+      const filter = document.getElementById('emailFilter').value;
+      const senderName = document.getElementById('emailSenderName').value || 'LMS System';
+      const subject = document.getElementById('emailSubject').value;
+      const body = getEmailContent();
+      const actualRecipients = emailRecipients.length - excludedEmails.length;
+
+      if (!subject || !body || body === '<p><br></p>') {
+        showToast('Vui lòng điền Subject và Nội dung email', 'warning');
+        return;
+      }
+
+      if (actualRecipients <= 0) {
+        showToast('Không có người nhận nào được chọn!', 'warning');
+        return;
+      }
+
+      if (!confirm(`Gửi email tới ${actualRecipients} người (loại trừ ${excludedEmails.length})?`)) return;
+
+      console.log('🔍 [EmailMkt] Sending campaign:', { filter, senderName, actualRecipients, excludedCount: excludedEmails.length });
 
       const btn = document.getElementById('btnSendMail');
       const originalText = btn.innerHTML;
@@ -3357,18 +3725,27 @@
       try {
         const res = await callAPI('sendBatchEmail', {
           filterType: filter,
+          senderName: senderName,
           subject: subject,
-          bodyTemplate: body
+          bodyTemplate: body,
+          excludedEmails: excludedEmails
         });
+
+        console.log('✅ [EmailMkt] Campaign result:', res);
 
         if (res.success) {
           showToast(res.message, 'success', 5000);
           document.getElementById('emailSubject').value = '';
-          document.getElementById('emailBody').value = '';
+          if (quillEditor) quillEditor.setContents([]);
+
+          // Reload stats and preview
+          await loadEmailStats();
+          await loadRecipientPreview();
         } else {
           showToast(res.message, 'error');
         }
       } catch (e) {
+        console.error('❌ [EmailMkt] Campaign error:', e);
         showToast('Error sending emails: ' + e.message, 'error');
       } finally {
         btn.disabled = false;
@@ -6466,6 +6843,204 @@
     })();
   </script>
 
+  <!-- MODAL ADD USER DIRECT -->
+  <div class="profile-modal-overlay" id="modalAddUserDirect"
+    onclick="if(event.target===this) closeModalAddUserDirect()">
+    <div class="profile-modal" style="max-width:400px">
+      <div style="padding:24px;border-bottom:1px solid #333">
+        <h3 style="font-size:18px;font-weight:700;color:var(--text-primary)">Thêm Học Viên Mới</h3>
+      </div>
+      <form id="formAddUserDirect" style="padding:24px">
+        <div class="form-group" style="margin-bottom:16px">
+          <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--text-muted)">Email <span
+              style="color:red">*</span></label>
+          <input type="email" id="newUserDirectEmail" class="form-input" required placeholder="nhapemail@gmail.com"
+            style="width:100%;padding:10px;background:var(--bg-800);border:1px solid var(--border);color:var(--text-primary);border-radius:6px">
+        </div>
+        <div class="form-group" style="margin-bottom:24px">
+          <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--text-muted)">Họ và tên</label>
+          <input type="text" id="newUserDirectName" class="form-input" placeholder="Nguyễn Văn A"
+            style="width:100%;padding:10px;background:var(--bg-800);border:1px solid var(--border);color:var(--text-primary);border-radius:6px">
+        </div>
+        <div id="addUserDirectMsg" style="margin-bottom:16px"></div>
+        <div style="display:flex;justify-content:flex-end;gap:12px">
+          <button type="button" class="btn" onclick="closeModalAddUserDirect()"
+            style="background:var(--bg-700);color:var(--text-primary);border:1px solid var(--border)">Hủy</button>
+          <button type="submit" class="btn btn-primary" style="background:var(--brand-red);border:none;color:white">Thêm
+            ngay</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // ========== ADD USER DIRECT LOGIC ==========
+    function openModalAddUserDirect() {
+      console.log('🔍 [AddUserDirect] Opening modal...');
+      document.getElementById('modalAddUserDirect').classList.add('active');
+      document.getElementById('formAddUserDirect').reset();
+      document.getElementById('addUserDirectMsg').innerHTML = '';
+    }
+
+    function closeModalAddUserDirect() {
+      document.getElementById('modalAddUserDirect').classList.remove('active');
+    }
+
+    document.getElementById('formAddUserDirect').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const email = document.getElementById('newUserDirectEmail').value.trim();
+      const name = document.getElementById('newUserDirectName').value.trim();
+      const msgDiv = document.getElementById('addUserDirectMsg');
+
+      console.log('🔍 [AddUserDirect] Submitting form:', { email, name });
+
+      if (!email) {
+        msgDiv.innerHTML = '<div class="alert alert-error">Vui lòng nhập Email!</div>';
+        return;
+      }
+
+      msgDiv.innerHTML = '<div class="alert alert-success">⏳ Đang xử lý...</div>';
+
+      try {
+        // Reuse addStudentToSheet API
+        const result = await callAPI('addStudentToSheet', { email, name });
+        console.log('✅ [AddUserDirect] Result:', result);
+        if (result.success) {
+          msgDiv.innerHTML = '<div class="alert alert-success">✅ ' + result.message + '</div>';
+          setTimeout(() => {
+            closeModalAddUserDirect();
+            // Reset cache to reload new user
+            localStorage.removeItem('lms_users_cache');
+            loadAdminUsers(true);
+          }, 1500);
+        } else {
+          msgDiv.innerHTML = '<div class="alert alert-error">' + result.message + '</div>';
+        }
+      } catch (error) {
+        console.error('❌ [AddUserDirect] Error:', error);
+        msgDiv.innerHTML = '<div class="alert alert-error">Lỗi: ' + error + '</div>';
+      }
+    });
+    // ==========================================
+    // EMAIL CONFIGURATION & IMAGE UPLOAD LOGIC
+    // ==========================================
+
+    // Load email settings
+    async function loadEmailConfiguration() {
+      try {
+        const res = await callAPI('getEmailSettings');
+        if (res.success) {
+          const driveInput = document.getElementById('settingDriveFolder_v3');
+          const senderInput = document.getElementById('emailSenderName');
+
+          if (driveInput) driveInput.value = res.settings.driveFolderId || '';
+          // Only set sender if empty or default
+          if (senderInput && res.settings.defaultSenderName && senderInput.value === 'AZ English Academy') {
+            senderInput.value = res.settings.defaultSenderName;
+          }
+
+          console.log('✅ [EmailMkt] Config loaded');
+        }
+      } catch (e) { console.error('Error loading config:', e); }
+    }
+
+    // Save email settings (Renamed to bust cache)
+    async function handleSaveEmailConfig() {
+      console.log('🔥 [EmailMkt v2.2] Button Clicked!');
+      const folderEl = document.getElementById('settingDriveFolder_v3');
+      const senderEl = document.getElementById('emailSenderName');
+
+      const folderUrl = folderEl ? folderEl.value.trim() : "";
+      const senderName = senderEl ? senderEl.value.trim() : "";
+
+      // DEBUG POPUP
+      alert('DEBUG CHECK v2.2:\nFolder Value: "' + folderUrl + '"\nInput ID: settingDriveFolder_v3\n(Nếu trống -> Lỗi đọc Input)');
+
+      console.log('🔍 [EmailMkt] Try Saving Config.', { folderUrl, senderName });
+
+      if (!folderUrl) {
+        showToast('Vui lòng nhập Link Folder Drive!', 'warning');
+        return;
+      }
+
+      showToast('Đang lưu cấu hình...', 'info');
+      try {
+        const payload = {
+          driveFolderId: folderUrl,
+          defaultSenderName: senderName
+        };
+        console.log('🔍 [EmailMkt] Sending Payload:', payload);
+
+        const res = await callAPI('saveEmailSettings', {
+          settings: payload
+        });
+
+        if (res.success) {
+          showToast(res.message, 'success');
+          if (res.folderId && folderEl) {
+            folderEl.value = res.folderId;
+          }
+        } else {
+          showToast(res.message, 'error');
+          console.error('❌ [EmailMkt] Backend Error:', res);
+        }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Frontend Error:', e);
+        showToast('Lỗi lưu cấu hình: ' + e.toString(), 'error');
+      }
+    }
+
+    // Handle Image Upload from Quill
+    async function handleQuillImageUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      // Check file type/size
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('Ảnh quá lớn (>5MB). Vui lòng chọn ảnh nhỏ hơn.', 'warning');
+        return;
+      }
+
+      showToast('Đang upload ảnh lên Drive...', 'info');
+
+      // Show loading placeholder in Quill
+      const range = quillEditor.getSelection(true);
+      if (range) {
+        quillEditor.insertText(range.index, '...Uploading Image...', 'bold', true);
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function (e) {
+        const base64Data = e.target.result;
+
+        try {
+          const res = await callAPI('uploadImageToDrive', {
+            base64Data: base64Data,
+            fileName: file.name
+          });
+
+          // Remove placeholder
+          if (range) quillEditor.deleteText(range.index, 21);
+
+          if (res.success) {
+            // Insert image with direct URL
+            quillEditor.insertEmbed(range ? range.index : 0, 'image', res.url);
+            showToast('Upload ảnh thành công!', 'success');
+          } else {
+            showToast(res.message, 'error');
+          }
+        } catch (err) {
+          if (range) quillEditor.deleteText(range.index, 21);
+          console.error('Upload Error:', err);
+          showToast('Lỗi upload ảnh: ' + err.message, 'error');
+        }
+
+        // Reset input
+        input.value = '';
+      };
+      reader.readAsDataURL(file);
+    }
+  </script>
 </body>
 
 </html>

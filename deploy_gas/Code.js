@@ -136,13 +136,32 @@ function doPost(e) {
         result = addStudentToSheet(data.email, data.name);
         break;
       case 'sendBatchEmail':
-        result = sendBatchEmail(data.filterType, data.subject, data.bodyTemplate);
+        result = sendBatchEmail(data.filterType, data.senderName, data.subject, data.bodyTemplate, data.excludedEmails || []);
         break;
       case 'toggleAutoReminder':
         result = toggleAutoReminder(data.isActive);
         break;
       case 'getAutoReminderStatus':
         result = getAutoReminderStatus();
+        break;
+      // ========== EMAIL MARKETING APIs ==========
+      case 'getEmailStats':
+        result = getEmailStats();
+        break;
+      case 'sendTestEmail':
+        result = sendTestEmail(data.testEmail, data.senderName, data.subject, data.bodyTemplate);
+        break;
+      case 'getRecipientPreview':
+        result = getRecipientPreview(data.filterType);
+        break;
+      case 'getEmailSettings':
+        result = getEmailSettings();
+        break;
+      case 'saveEmailSettings':
+        result = saveEmailSettings(data.settings);
+        break;
+      case 'uploadImageToDrive':
+        result = uploadImageToDrive(data.base64Data, data.fileName);
         break;
       default: 
         result = { success: false, message: "Unknown action: " + action };
@@ -2450,6 +2469,7 @@ function getCourseReport(courseCode) {
 
 // 1. Thêm học viên nhanh (Write-back)
 function addStudentToSheet(email, name) {
+  console.log('🔍 [Backend] addStudentToSheet called:', { email, name });
   try {
     const sh = SpreadsheetApp.getActive().getSheetByName(USERS_SHEET);
     const emailLower = String(email).toLowerCase().trim();
@@ -2458,6 +2478,7 @@ function addStudentToSheet(email, name) {
     const values = sh.getDataRange().getValues();
     for (let i = 1; i < values.length; i++) {
       if (String(values[i][0]).toLowerCase().trim() === emailLower) {
+        console.warn('⚠️ [Backend] Duplicate email found:', emailLower);
         return { success: false, message: 'Email đã tồn tại!' };
       }
     }
@@ -2476,6 +2497,7 @@ function addStudentToSheet(email, name) {
     ];
     
     sh.appendRow(rowData);
+    console.log('✅ [Backend] Row appended:', rowData);
     
     // Add validation for new row
     const lastRow = sh.getLastRow();
@@ -2492,16 +2514,20 @@ function addStudentToSheet(email, name) {
     return { success: true, message: 'Đã thêm học viên thành công! Password: 123456' };
     
   } catch (e) {
-    console.error('addStudentToSheet error:', e);
+    console.error('❌ [Backend] addStudentToSheet error:', e);
     return { success: false, message: e.toString() };
   }
 }
 
-// 2. Gửi Email Hàng loạt (Batch Campaign)
-function sendBatchEmail(filterType, subject, bodyTemplate) {
+// 2. Gửi Email Hàng loạt (Batch Campaign) - Updated with logging, exclusion & sender name
+function sendBatchEmail(filterType, senderName, subject, bodyTemplate, excludedEmails) {
+  const fromName = senderName || 'LMS System';
+  const campaignID = 'CAMP_' + new Date().getTime();
+  const timestamp = new Date().toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'});
+  console.log('🔍 [EmailMkt] sendBatchEmail started:', { campaignID, filterType, excludedEmails });
+  
   try {
-    console.log('📧 Starting Batch Email:', filterType);
-    const users = getAllStudents().students; // Reuse existing function
+    const users = getAllStudents().students;
     let targetEmails = [];
     
     // Lọc user theo filterType
@@ -2512,46 +2538,70 @@ function sendBatchEmail(filterType, subject, bodyTemplate) {
     } else if (filterType === 'pending') {
       targetEmails = users.filter(u => u.status === 'Pending').map(u => ({email: u.email, name: u.name}));
     } else if (filterType === 'inactive') {
-       // Mock inactive for now or use complex logic
-       // For demo, treat all active as potential target
        targetEmails = users.filter(u => u.status === 'Active').map(u => ({email: u.email, name: u.name}));
     }
     
-    if (targetEmails.length === 0) {
-      return { success: false, message: 'Không tìm thấy user nào theo bộ lọc này.' };
+    // Filter out excluded emails
+    const excludedSet = new Set((excludedEmails || []).map(e => e.toLowerCase()));
+    const filteredEmails = targetEmails.filter(u => !excludedSet.has(u.email.toLowerCase()));
+    
+    console.log('🔍 [EmailMkt] After exclusion:', { original: targetEmails.length, filtered: filteredEmails.length, excluded: excludedSet.size });
+    
+    if (filteredEmails.length === 0) {
+      return { success: false, message: 'Không tìm thấy user nào sau khi loại trừ.' };
     }
     
     // Check quota (Safety limit)
     const quota = MailApp.getRemainingDailyQuota();
-    if (targetEmails.length > quota) {
-      return { success: false, message: `Số lượng email (${targetEmails.length}) vượt quá giới hạn ngày (${quota}).` };
+    if (filteredEmails.length > quota) {
+      return { success: false, message: `Số lượng email (${filteredEmails.length}) vượt quá giới hạn ngày (${quota}).` };
     }
     
     let sentCount = 0;
+    let failedCount = 0;
     
     // Gửi email loop
-    for (const user of targetEmails) {
-      // Thay thế biến {{name}}
-      const personalizedBody = bodyTemplate.replace(/{{name}}/g, user.name || 'Bạn');
+    for (const user of filteredEmails) {
+      let personalizedBody = bodyTemplate.replace(/{{name}}/g, user.name || 'Bạn');
+      personalizedBody = fixQuillHtmlForEmail(personalizedBody);
       
       try {
         MailApp.sendEmail({
           to: user.email,
           subject: subject,
-          htmlBody: personalizedBody
+          htmlBody: personalizedBody,
+          name: fromName  // Custom sender display name
         });
         sentCount++;
-        // Sleep 100ms to be nice to Google servers
         Utilities.sleep(100);
       } catch (err) {
-        console.error('Failed to send to:', user.email, err);
+        console.error('❌ [EmailMkt] Failed to send to:', user.email, err);
+        failedCount++;
       }
     }
     
-    return { success: true, message: `Đã gửi thành công ${sentCount}/${targetEmails.length} email.` };
+    // Log campaign to sheet
+    logEmailCampaign({
+      campaignID: campaignID,
+      timestamp: timestamp,
+      subject: subject,
+      filterType: filterType,
+      totalRecipients: filteredEmails.length,
+      successCount: sentCount,
+      failedCount: failedCount
+    });
+    
+    console.log('✅ [EmailMkt] Campaign completed:', { campaignID, sentCount, failedCount });
+    
+    return { 
+      success: true, 
+      campaignID: campaignID,
+      message: `Đã gửi thành công ${sentCount}/${filteredEmails.length} email.`,
+      stats: { sentCount, failedCount, total: filteredEmails.length }
+    };
     
   } catch (e) {
-    console.error('sendBatchEmail error:', e);
+    console.error('❌ [EmailMkt] sendBatchEmail error:', e);
     return { success: false, message: e.toString() };
   }
 }
@@ -2609,3 +2659,354 @@ function runAutoReminder() {
     console.error('Auto Reminder Failed:', e);
   }
 }
+
+// =====================================================
+// EMAIL MARKETING ANALYTICS SYSTEM
+// =====================================================
+const EMAIL_CAMPAIGNS_SHEET = 'EmailCampaigns';
+
+// Helper: Fix Quill HTML for email clients (reset margins, handle line breaks)
+function fixQuillHtmlForEmail(html) {
+  // Step 1: Replace empty paragraphs with single <br>
+  let fixed = html.replace(/<p><br><\/p>/g, '<br>');
+  fixed = fixed.replace(/<p><br\/><\/p>/g, '<br>');
+  
+  // Step 2: Wrap in styled container with inline CSS
+  const emailWrapper = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
+      <style>
+        p { margin: 0 0 8px 0 !important; }
+        img { max-width: 100%; height: auto; display: block; margin: 8px 0; }
+      </style>
+      ${fixed}
+    </div>
+  `;
+  
+  return emailWrapper;
+}
+
+// =====================================================
+// EMAIL SETTINGS & IMAGE UPLOAD
+// =====================================================
+
+// Get Email Settings from Script Properties
+function getEmailSettings() {
+  console.log('🔍 [EmailMkt] getEmailSettings called');
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('EmailCampaigns');
+    if (!sheet) return { success: false, message: 'Sheet EmailCampaigns not found' };
+
+    const folderId = sheet.getRange('I2').getValue();
+    const props = PropertiesService.getScriptProperties();
+    const defaultSender = props.getProperty('EMAIL_DEFAULT_SENDER') || 'LMS System';
+
+    console.log('✅ [EmailMkt] Settings loaded from Sheet I2:', folderId);
+
+    return { 
+      success: true, 
+      settings: {
+        driveFolderId: folderId,
+        defaultSenderName: defaultSender
+      }
+    };
+  } catch (e) {
+    console.error('❌ [EmailMkt] getEmailSettings error:', e);
+    return { success: false, message: e.toString() };
+  }
+}
+
+// Save Email Settings to Sheet (I2)
+function saveEmailSettings(settings) {
+  var input = "undefined";
+  var folderId = "";
+  var debugLog = [];
+  
+  function addLog(msg) {
+    console.log(msg);
+    debugLog.push("👉 " + msg);
+  }
+
+  try {
+    input = settings && settings.driveFolderId ? String(settings.driveFolderId).trim() : "";
+    addLog(`Đã nhận input từ Frontend: "${input}"`);
+    
+    folderId = input;
+    
+    // Parse URL if provided
+    addLog("Đang xử lý link URL...");
+    if (input.indexOf('/folders/') !== -1) {
+       const parts = input.split('/folders/');
+       if (parts.length > 1) {
+         folderId = parts[1].split(/[?#\/]/)[0];
+       }
+    } else if (input.indexOf('id=') !== -1) {
+       const parts = input.split('id=');
+       if (parts.length > 1) {
+         folderId = parts[1].split(/[&?#]/)[0];
+       }
+    }
+    
+    // Clean
+    folderId = folderId.trim();
+    addLog(`Đã tách được Folder ID: "${folderId}"`);
+    
+    if (!folderId) {
+       addLog("❌ Lỗi: Input rỗng hoặc không tìm thấy ID.");
+       return { success: false, message: debugLog.join('\n') };
+    }
+
+    // AUTH CHECK: Ensure DriveApp is working
+    try {
+      var test = DriveApp.getRootFolder();
+    } catch(e) {
+      return { success: false, message: "LỖI QUYỀN TRUY CẬP (PERMISSION).\n" + debugLog.join('\n') };
+    }
+
+    // FOLDER CHECK
+    try {
+      const folder = DriveApp.getFolderById(folderId);
+      const name = folder.getName();
+      addLog(`✅ Đã kiểm tra quyền truy cập Folder: "${name}"`);
+    } catch (err) {
+      addLog(`❌ Không thể truy cập Folder (Lỗi: ${err.message})`);
+      return { 
+        success: false, 
+        message: `Lỗi truy cập Folder!\n` + debugLog.join('\n') 
+      };
+    }
+    
+    // Save to Sheet I2
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('EmailCampaigns');
+    if (sheet) {
+      sheet.getRange('I2').setValue(folderId);
+      addLog("✅ Đã lưu ID vào ô I2 Sheet 'EmailCampaigns'.");
+    } else {
+       addLog("⚠️ Không tìm thấy Sheet 'EmailCampaigns' để lưu.");
+    }
+    
+    const props = PropertiesService.getScriptProperties();
+    props.setProperty('EMAIL_DEFAULT_SENDER', settings.defaultSenderName || 'LMS System');
+    
+    return { success: true, message: debugLog.join('\n'), folderId: folderId };
+    
+  } catch (e) {
+    return { success: false, message: `Lỗi hệ thống: ${e.toString()}\n` + debugLog.join('\n') };
+  }
+}
+
+// Upload Image to Drive Folder
+function uploadImageToDrive(base64Data, fileName) {
+  try {
+    // Get ID from Sheet I2
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('EmailCampaigns');
+    let folderId = '';
+    
+    if (sheet) {
+      folderId = sheet.getRange('I2').getValue();
+    }
+    
+    console.log('🔍 [EmailMkt] uploadImageToDrive. Filename:', fileName, 'FolderID (I2):', folderId);
+    
+    if (!folderId) {
+      return { success: false, message: 'Chưa cấu hình thư mục Drive (Ô I2 Sheet EmailCampaigns đang trống). Vui lòng vào Cài đặt Email để lưu lại link Folder.' };
+    }
+    
+    // Check DriveApp
+    try {
+      var check = DriveApp.getRootFolder();
+    } catch (authErr) {
+       return { success: false, message: 'Lỗi quyền truy cập Drive: ' + authErr.message };
+    }
+    
+    if (!base64Data) {
+      return { success: false, message: 'Không có dữ liệu ảnh.' };
+    }
+    
+    // Parse base64 data (format: data:image/png;base64,xxxx)
+    const parts = base64Data.split(',');
+    const mimeType = parts[0].match(/:(.*?);/)[1];
+    const data = parts[1];
+    const blob = Utilities.newBlob(Utilities.base64Decode(data), mimeType, fileName || 'image.png');
+    
+    // Get folder and create file
+    const folder = DriveApp.getFolderById(folderId);
+    const file = folder.createFile(blob);
+    
+    // Set sharing to anyone with link can view
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    // Get direct image URL (convert drive link to direct embed)
+    const fileId = file.getId();
+    const directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+    
+    console.log('✅ [EmailMkt] Image uploaded:', directUrl);
+    return { success: true, url: directUrl, fileId: fileId };
+    
+  } catch (e) {
+    console.error('❌ [EmailMkt] uploadImageToDrive error:', e);
+    return { success: false, message: 'Lỗi upload: ' + e.toString() };
+  }
+}
+
+// 1. Get Email Stats for Dashboard
+function getEmailStats() {
+  console.log('🔍 [EmailMkt] getEmailStats called');
+  try {
+    const ss = SpreadsheetApp.getActive();
+    let sh = ss.getSheetByName(EMAIL_CAMPAIGNS_SHEET);
+    
+    // Create sheet if not exists
+    if (!sh) {
+      console.log('🔍 [EmailMkt] Creating EmailCampaigns sheet...');
+      sh = ss.insertSheet(EMAIL_CAMPAIGNS_SHEET);
+      sh.appendRow(['CampaignID', 'Timestamp', 'Subject', 'FilterType', 'TotalRecipients', 'SuccessCount', 'FailedCount', 'Status']);
+      sh.getRange(1, 1, 1, 8).setBackground('#333').setFontColor('#fff').setFontWeight('bold');
+    }
+    
+    const data = sh.getDataRange().getValues();
+    const campaigns = [];
+    let totalAllTime = 0;
+    let sentToday = 0;
+    const todayStr = new Date().toLocaleDateString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'});
+    
+    // Skip header row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (!row[0]) continue;
+      
+      const successCount = parseInt(row[5]) || 0;
+      totalAllTime += successCount;
+      
+      // Check if campaign was today
+      const campDate = new Date(row[1]).toLocaleDateString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'});
+      if (campDate === todayStr) {
+        sentToday += successCount;
+      }
+      
+      // Add to campaigns array (most recent first)
+      campaigns.unshift({
+        id: row[0],
+        timestamp: row[1],
+        subject: row[2],
+        filterType: row[3],
+        totalRecipients: row[4],
+        successCount: successCount,
+        failedCount: row[6],
+        status: row[7] || 'Sent'
+      });
+    }
+    
+    // Get remaining quota from Gmail
+    const remainingQuota = MailApp.getRemainingDailyQuota();
+    
+    console.log('✅ [EmailMkt] Stats:', { totalAllTime, sentToday, remainingQuota, campaignCount: campaigns.length });
+    
+    return {
+      success: true,
+      totalAllTime: totalAllTime,
+      sentToday: sentToday,
+      remainingQuota: remainingQuota,
+      campaigns: campaigns.slice(0, 20) // Return last 20 campaigns
+    };
+    
+  } catch (e) {
+    console.error('❌ [EmailMkt] getEmailStats error:', e);
+    return { success: false, message: e.toString() };
+  }
+}
+
+// 2. Log Email Campaign to Sheet
+function logEmailCampaign(data) {
+  console.log('🔍 [EmailMkt] logEmailCampaign:', data.campaignID);
+  try {
+    const ss = SpreadsheetApp.getActive();
+    let sh = ss.getSheetByName(EMAIL_CAMPAIGNS_SHEET);
+    
+    if (!sh) {
+      sh = ss.insertSheet(EMAIL_CAMPAIGNS_SHEET);
+      sh.appendRow(['CampaignID', 'Timestamp', 'Subject', 'FilterType', 'TotalRecipients', 'SuccessCount', 'FailedCount', 'Status']);
+    }
+    
+    sh.appendRow([
+      data.campaignID,
+      data.timestamp,
+      data.subject,
+      data.filterType,
+      data.totalRecipients,
+      data.successCount,
+      data.failedCount,
+      'Sent'
+    ]);
+    
+    console.log('✅ [EmailMkt] Campaign logged:', data.campaignID);
+    return true;
+  } catch (e) {
+    console.error('❌ [EmailMkt] logEmailCampaign error:', e);
+    return false;
+  }
+}
+
+// 3. Get Recipient Preview (for selecting/excluding users)
+function getRecipientPreview(filterType) {
+  console.log('🔍 [EmailMkt] getRecipientPreview:', filterType);
+  try {
+    const users = getAllStudents().students;
+    let recipients = [];
+    
+    if (filterType === 'all') {
+      recipients = users.map(u => ({ email: u.email, name: u.name, status: u.status }));
+    } else if (filterType === 'active') {
+      recipients = users.filter(u => u.status === 'Active').map(u => ({ email: u.email, name: u.name, status: u.status }));
+    } else if (filterType === 'pending') {
+      recipients = users.filter(u => u.status === 'Pending').map(u => ({ email: u.email, name: u.name, status: u.status }));
+    } else if (filterType === 'inactive') {
+      // Users who haven't logged in for 7+ days (simplified: just return Active for now)
+      recipients = users.filter(u => u.status === 'Active').map(u => ({ email: u.email, name: u.name, status: u.status }));
+    }
+    
+    console.log('✅ [EmailMkt] Preview recipients:', recipients.length);
+    return { success: true, recipients: recipients, total: recipients.length };
+    
+  } catch (e) {
+    console.error('❌ [EmailMkt] getRecipientPreview error:', e);
+    return { success: false, message: e.toString() };
+  }
+}
+
+// 4. Send Test Email
+function sendTestEmail(testEmail, senderName, subject, bodyTemplate) {
+  console.log('🔍 [EmailMkt] sendTestEmail to:', testEmail, 'from:', senderName);
+  try {
+    if (!testEmail || !subject || !bodyTemplate) {
+      return { success: false, message: 'Thiếu thông tin (email, subject, body)' };
+    }
+    
+    // Replace {{name}} with "Test User"
+    let personalizedBody = bodyTemplate.replace(/{{name}}/g, 'Test User');
+    
+    // Fix Quill HTML: Convert empty paragraphs to line breaks, reset margins
+    personalizedBody = fixQuillHtmlForEmail(personalizedBody);
+    
+    const fromName = senderName || 'LMS System';
+    
+    console.log('🔍 [EmailMkt] Sending HTML:', personalizedBody.substring(0, 500));
+    
+    MailApp.sendEmail({
+      to: testEmail,
+      subject: '[TEST] ' + subject,
+      htmlBody: personalizedBody,
+      name: fromName  // Sender display name
+    });
+    
+    console.log('✅ [EmailMkt] Test email sent to:', testEmail);
+    return { success: true, message: 'Đã gửi email test tới ' + testEmail };
+    
+  } catch (e) {
+    console.error('❌ [EmailMkt] sendTestEmail error:', e);
+    return { success: false, message: e.toString() };
+  }
+}
+
