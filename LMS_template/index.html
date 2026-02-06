@@ -2465,7 +2465,7 @@
   <script>
     // ========== CẤU HÌNH API - THAY ĐỔI URL NÀY ==========
     // ========== CẤU HÌNH API - THAY ĐỔI URL NÀY ==========
-    const API_URL = 'https://script.google.com/macros/s/AKfycbw1svNQTVYMlOF-HHUI1iK06nNMgcpUt7BNO3qLQmV6JkXvAd2sAH1u3IuJLLJbGUYaZw/exec';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbypZU4oo_GK6Mi2-TGlH6xNuTsZkw8mrooi2EGjUE7d/exec'; // @HEAD - Auto-updates with clasp push
 
     // Helper: Escape HTML (Fix for blank report)
     function escapeHtml(text) {
@@ -3246,11 +3246,18 @@
       }
     }
 
-    // 6. EMAIL MARKETING & AUTOMATION
+    // 6. EMAIL MARKETING & AUTOMATION - Updated with Analytics
+    let emailRecipients = []; // Global store for recipients
+    let excludedEmails = []; // Emails to exclude
+
     async function loadAdminEmailMarketing() {
+      console.log('🔍 [EmailMkt] Loading Email Marketing tab...');
       const content = document.getElementById('adminContent');
       content.innerHTML = renderEmailMarketingUI();
       if (window.lucide) lucide.createIcons();
+
+      // Load real stats
+      await loadEmailStats();
 
       // Check auto reminder status
       try {
@@ -3260,59 +3267,211 @@
           if (toggle) toggle.checked = res.isActive;
         }
       } catch (e) { console.error(e); }
+
+      // Setup filter change listener
+      document.getElementById('emailFilter').addEventListener('change', loadRecipientPreview);
+
+      // Load initial preview
+      await loadRecipientPreview();
+    }
+
+    async function loadEmailStats() {
+      console.log('🔍 [EmailMkt] Loading stats...');
+      try {
+        const res = await callAPI('getEmailStats', {});
+        console.log('✅ [EmailMkt] Stats loaded:', res);
+
+        if (res.success) {
+          document.getElementById('statTotalAllTime').textContent = res.totalAllTime || 0;
+          document.getElementById('statSentToday').textContent = res.sentToday || 0;
+          document.getElementById('statQuotaRemaining').textContent = res.remainingQuota || 100;
+
+          // Render campaign history
+          renderCampaignHistory(res.campaigns || []);
+        }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Error loading stats:', e);
+      }
+    }
+
+    async function loadRecipientPreview() {
+      const filterType = document.getElementById('emailFilter').value;
+      console.log('🔍 [EmailMkt] Loading recipient preview for:', filterType);
+
+      const container = document.getElementById('recipientPreviewList');
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</div>';
+
+      try {
+        const res = await callAPI('getRecipientPreview', { filterType });
+        console.log('✅ [EmailMkt] Recipients loaded:', res.total);
+
+        if (res.success) {
+          emailRecipients = res.recipients;
+          excludedEmails = []; // Reset exclusions
+          renderRecipientList(res.recipients);
+          document.getElementById('recipientCount').textContent = res.total;
+        }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Error loading recipients:', e);
+        container.innerHTML = '<div style="color:#ef4444">Error loading recipients</div>';
+      }
+    }
+
+    function renderRecipientList(recipients) {
+      const container = document.getElementById('recipientPreviewList');
+      if (recipients.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">No recipients found</div>';
+        return;
+      }
+
+      let html = '';
+      recipients.forEach((r, i) => {
+        html += `
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--border)">
+            <input type="checkbox" id="recip_${i}" checked onchange="toggleRecipientExclusion('${r.email}', this.checked)" 
+                   style="width:16px;height:16px;cursor:pointer">
+            <div style="flex:1">
+              <div style="font-weight:500;color:var(--text-primary)">${r.name || 'Chưa có tên'}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${r.email}</div>
+            </div>
+            <span class="status-badge status-${r.status === 'Active' ? 'active' : 'pending'}">${r.status}</span>
+          </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function toggleRecipientExclusion(email, isIncluded) {
+      if (isIncluded) {
+        excludedEmails = excludedEmails.filter(e => e !== email);
+      } else {
+        if (!excludedEmails.includes(email)) {
+          excludedEmails.push(email);
+        }
+      }
+      // Update count
+      const remaining = emailRecipients.length - excludedEmails.length;
+      document.getElementById('selectedCount').textContent = remaining;
+      console.log('🔍 [EmailMkt] Excluded emails:', excludedEmails.length, '| Will send to:', remaining);
+    }
+
+    function selectAllRecipients(selectAll) {
+      const checkboxes = document.querySelectorAll('#recipientPreviewList input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        cb.checked = selectAll;
+      });
+      excludedEmails = selectAll ? [] : emailRecipients.map(r => r.email);
+      const remaining = selectAll ? emailRecipients.length : 0;
+      document.getElementById('selectedCount').textContent = remaining;
+    }
+
+    function renderCampaignHistory(campaigns) {
+      const tbody = document.getElementById('campaignHistoryBody');
+      if (!campaigns || campaigns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Chưa có chiến dịch nào</td></tr>';
+        return;
+      }
+
+      let html = '';
+      campaigns.slice(0, 10).forEach(c => {
+        html += `
+          <tr>
+            <td style="padding:12px;color:var(--text-muted);font-size:13px">${c.timestamp || '--'}</td>
+            <td style="padding:12px;color:var(--text-primary)">${c.subject || '--'}</td>
+            <td style="padding:12px;color:var(--text-secondary)">${c.filterType || '--'}</td>
+            <td style="padding:12px"><span style="color:#22c55e">${c.successCount}</span>/${c.totalRecipients}</td>
+            <td style="padding:12px;color:var(--text-muted)">--</td>
+          </tr>`;
+      });
+      tbody.innerHTML = html;
     }
 
     function renderEmailMarketingUI() {
       return `
-        <div style="max-width:800px; margin:0 auto">
+        <div style="max-width:1000px; margin:0 auto">
           <div style="margin-bottom:24px">
             <h2 class="admin-title" style="margin-bottom:8px">Email Marketing & Automation</h2>
             <div style="color:var(--text-muted)">Send announcements or set up automated reminders.</div>
           </div>
 
-          <!-- Quick Stats (Mockup) -->
-          <div class="stats-grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:32px">
+          <!-- Stats Cards (Dynamic) -->
+          <div class="stats-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:32px">
              <div class="stat-card" style="padding:16px">
-                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Emails Sent</div>
-                <div style="font-size:24px;font-weight:700;color:white">0</div>
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Total Sent (All Time)</div>
+                <div id="statTotalAllTime" style="font-size:24px;font-weight:700;color:white">--</div>
              </div>
              <div class="stat-card" style="padding:16px">
-                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Open Rate</div>
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Sent Today</div>
+                <div id="statSentToday" style="font-size:24px;font-weight:700;color:#22c55e">--</div>
+             </div>
+             <div class="stat-card" style="padding:16px">
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Quota Remaining</div>
+                <div id="statQuotaRemaining" style="font-size:24px;font-weight:700;color:#3b82f6">--</div>
+             </div>
+             <div class="stat-card" style="padding:16px">
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Open Rate (Avg)</div>
                 <div style="font-size:24px;font-weight:700;color:var(--warning)">--</div>
-             </div>
-             <div class="stat-card" style="padding:16px">
-                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Active flows</div>
-                <div style="font-size:24px;font-weight:700;color:var(--success)">1</div>
+                <div style="font-size:10px;color:var(--text-muted)">Coming soon</div>
              </div>
           </div>
           
-          <!-- Create Campaign -->
-          <div class="stat-card">
-             <div style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center">
-                <h3 style="margin:0; font-size:18px; color:white">New Campaign</h3>
-                <span class="status-badge status-active">Daily Limit: 100</span>
-             </div>
-             <div class="form-group">
-                <label class="form-label">Send to</label>
-                <select id="emailFilter" class="form-input" style="background:var(--bg-900)">
-                   <option value="all">All Students</option>
-                   <option value="active">Active Students</option>
-                   <option value="pending">Pending Approval</option>
-                   <!-- <option value="inactive">Inactive (>7 days)</option> -->
-                </select>
-             </div>
-             <div class="form-group">
-                <label class="form-label">Subject</label>
-                <input type="text" id="emailSubject" class="form-input" placeholder="e.g. Course Update: New Lesson Available">
-             </div>
-             <div class="form-group">
-                <label class="form-label">Message</label>
-                <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px">Variable: <code>{{name}}</code> will be replaced by user's name.</div>
-                <textarea id="emailBody" class="form-input" rows="6" placeholder="Hi {{name}}, ..."></textarea>
-             </div>
-             <button class="btn btn-red" onclick="handleSendBatchEmail()" id="btnSendMail" style="width:100%; justify-content:center">
-                <i data-lucide="send" style="width:16px; margin-right:8px"></i> Send Campaign
-             </button>
+          <div style="display:grid;grid-template-columns:1fr 320px;gap:24px">
+            <!-- Left: Campaign Form -->
+            <div class="stat-card">
+               <div style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center">
+                  <h3 style="margin:0; font-size:18px; color:white">New Campaign</h3>
+               </div>
+               
+               <!-- Test Email Section -->
+               <div style="background:var(--bg-900);border-radius:8px;padding:16px;margin-bottom:20px;border:1px solid var(--border)">
+                  <div style="display:flex;gap:12px;align-items:flex-end">
+                     <div style="flex:1">
+                        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">Test Email (Send test before launching)</label>
+                        <input type="email" id="testEmailInput" class="form-input" placeholder="your@email.com" style="background:var(--bg-800)">
+                     </div>
+                     <button class="btn" onclick="handleSendTestEmail()" style="background:var(--bg-700);border:1px solid var(--border);white-space:nowrap">
+                        <i data-lucide="mail-check" style="width:14px;margin-right:6px"></i> Send Test
+                     </button>
+                  </div>
+               </div>
+               
+               <div class="form-group">
+                  <label class="form-label">Send to</label>
+                  <select id="emailFilter" class="form-input" style="background:var(--bg-900)">
+                     <option value="all">All Students</option>
+                     <option value="active">Active Students</option>
+                     <option value="pending">Pending Approval</option>
+                  </select>
+               </div>
+               <div class="form-group">
+                  <label class="form-label">Subject</label>
+                  <input type="text" id="emailSubject" class="form-input" placeholder="e.g. Course Update: New Lesson Available">
+               </div>
+               <div class="form-group">
+                  <label class="form-label">Message</label>
+                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px">Variable: <code>{{name}}</code> will be replaced by user's name.</div>
+                  <textarea id="emailBody" class="form-input" rows="6" placeholder="Hi {{name}}, ..."></textarea>
+               </div>
+               <button class="btn btn-red" onclick="handleSendBatchEmail()" id="btnSendMail" style="width:100%; justify-content:center">
+                  <i data-lucide="send" style="width:16px; margin-right:8px"></i> Send Campaign (<span id="selectedCount">0</span> recipients)
+               </button>
+            </div>
+            
+            <!-- Right: Recipient Preview -->
+            <div class="stat-card" style="padding:0;display:flex;flex-direction:column;max-height:500px">
+               <div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                     <h4 style="margin:0;font-size:14px;color:white">Recipients</h4>
+                     <div style="font-size:12px;color:var(--text-muted)"><span id="recipientCount">0</span> users in list</div>
+                  </div>
+                  <div style="display:flex;gap:8px">
+                     <button class="btn-sm" style="font-size:11px;padding:4px 8px" onclick="selectAllRecipients(true)">Select All</button>
+                     <button class="btn-sm" style="font-size:11px;padding:4px 8px;background:transparent;border:1px solid var(--border)" onclick="selectAllRecipients(false)">Deselect</button>
+                  </div>
+               </div>
+               <div id="recipientPreviewList" style="flex:1;overflow-y:auto">
+                  <div style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</div>
+               </div>
+            </div>
           </div>
 
           <!-- Automation -->
@@ -3333,21 +3492,84 @@
                #autoReminderToggle:checked + .slider .slider-thumb { transform: translateX(24px); }
              </style>
           </div>
+          
+          <!-- Campaign History -->
+          <div class="stat-card" style="margin-top:24px;">
+             <div style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px">
+                <h3 style="margin:0; font-size:18px; color:white">Campaign History</h3>
+             </div>
+             <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse">
+                   <thead>
+                      <tr style="border-bottom:1px solid var(--border)">
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Date</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Subject</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Filter</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Sent</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Open Rate</th>
+                      </tr>
+                   </thead>
+                   <tbody id="campaignHistoryBody">
+                      <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading...</td></tr>
+                   </tbody>
+                </table>
+             </div>
+          </div>
         </div>
       `;
+    }
+
+    async function handleSendTestEmail() {
+      const testEmail = document.getElementById('testEmailInput').value;
+      const subject = document.getElementById('emailSubject').value;
+      const body = document.getElementById('emailBody').value;
+
+      if (!testEmail) {
+        showToast('Vui lòng nhập email để test', 'warning');
+        return;
+      }
+      if (!subject || !body) {
+        showToast('Vui lòng nhập Subject và Message trước', 'warning');
+        return;
+      }
+
+      console.log('🔍 [EmailMkt] Sending test email to:', testEmail);
+      showToast('Đang gửi test email...', 'info');
+
+      try {
+        const res = await callAPI('sendTestEmail', { testEmail, subject, bodyTemplate: body });
+        console.log('✅ [EmailMkt] Test email result:', res);
+
+        if (res.success) {
+          showToast(res.message, 'success');
+        } else {
+          showToast(res.message, 'error');
+        }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Test email error:', e);
+        showToast('Error: ' + e.message, 'error');
+      }
     }
 
     async function handleSendBatchEmail() {
       const filter = document.getElementById('emailFilter').value;
       const subject = document.getElementById('emailSubject').value;
       const body = document.getElementById('emailBody').value;
+      const actualRecipients = emailRecipients.length - excludedEmails.length;
 
       if (!subject || !body) {
         showToast('Please fill all fields', 'warning');
         return;
       }
 
-      if (!confirm(`Send email to [${filter.toUpperCase()}] users? This cannot be undone.`)) return;
+      if (actualRecipients <= 0) {
+        showToast('Không có người nhận nào được chọn!', 'warning');
+        return;
+      }
+
+      if (!confirm(`Gửi email tới ${actualRecipients} người (loại trừ ${excludedEmails.length})?`)) return;
+
+      console.log('🔍 [EmailMkt] Sending campaign:', { filter, actualRecipients, excludedCount: excludedEmails.length });
 
       const btn = document.getElementById('btnSendMail');
       const originalText = btn.innerHTML;
@@ -3358,17 +3580,25 @@
         const res = await callAPI('sendBatchEmail', {
           filterType: filter,
           subject: subject,
-          bodyTemplate: body
+          bodyTemplate: body,
+          excludedEmails: excludedEmails
         });
+
+        console.log('✅ [EmailMkt] Campaign result:', res);
 
         if (res.success) {
           showToast(res.message, 'success', 5000);
           document.getElementById('emailSubject').value = '';
           document.getElementById('emailBody').value = '';
+
+          // Reload stats and preview
+          await loadEmailStats();
+          await loadRecipientPreview();
         } else {
           showToast(res.message, 'error');
         }
       } catch (e) {
+        console.error('❌ [EmailMkt] Campaign error:', e);
         showToast('Error sending emails: ' + e.message, 'error');
       } finally {
         btn.disabled = false;
