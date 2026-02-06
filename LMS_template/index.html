@@ -3537,7 +3537,7 @@
              <div style="flex:2; display:flex; gap:12px; min-width:300px">
                 <div style="flex:1">
                    <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Google Drive Folder URL (For Images)</label>
-                   <input type="text" id="settingDriveFolder" class="form-input" placeholder="https://drive.google.com/drive/folders/..." style="background:var(--bg-800)">
+                   <input type="text" id="settingDriveFolder_v3" class="form-input" placeholder="https://drive.google.com/drive/folders/..." style="background:var(--bg-800)">
                 </div>
                 <div style="display:flex; align-items:flex-end">
                    <button class="btn" onclick="handleSaveEmailConfig()" style="background:var(--bg-700);border:1px solid var(--border)">
@@ -6928,9 +6928,9 @@
     // Load email settings
     async function loadEmailConfiguration() {
       try {
-        const res = await callAPI('getEmailSettings', {});
-        if (res.success && res.settings) {
-          const driveInput = document.getElementById('settingDriveFolder');
+        const res = await callAPI('getEmailSettings');
+        if (res.success) {
+          const driveInput = document.getElementById('settingDriveFolder_v3');
           const senderInput = document.getElementById('emailSenderName');
 
           if (driveInput) driveInput.value = res.settings.driveFolderId || '';
@@ -6946,14 +6946,15 @@
 
     // Save email settings (Renamed to bust cache)
     async function handleSaveEmailConfig() {
-      const folderEl = document.getElementById('settingDriveFolder');
+      console.log('🔥 [EmailMkt v2.2] Button Clicked!');
+      const folderEl = document.getElementById('settingDriveFolder_v3');
       const senderEl = document.getElementById('emailSenderName');
 
       const folderUrl = folderEl ? folderEl.value.trim() : "";
       const senderName = senderEl ? senderEl.value.trim() : "";
 
       // DEBUG POPUP
-      alert('DEBUG CHECK v2.2:\nFolder Value: "' + folderUrl + '"\n(Nếu trống -> Lỗi đọc Input)');
+      alert('DEBUG CHECK v2.2:\nFolder Value: "' + folderUrl + '"\nInput ID: settingDriveFolder_v3\n(Nếu trống -> Lỗi đọc Input)');
 
       console.log('🔍 [EmailMkt] Try Saving Config.', { folderUrl, senderName });
 
