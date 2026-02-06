@@ -3538,9 +3538,14 @@
                 <div style="display:flex; align-items:flex-end; gap:12px">
                    <div style="flex:1">
                       <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Email Configuration</label>
-                      <button class="btn" onclick="openEmailSettingsModal()" style="width:100%;background:var(--bg-700);border:1px solid var(--border);color:white;justify-content:center">
-                         <i data-lucide="settings" style="width:14px;margin-right:6px"></i> Open Email Editor
-                      </button>
+                       <button class="btn" onclick="openEmailSettingsModal()" style="width:100%;background:var(--bg-700);border:1px solid var(--border);color:white;justify-content:center">
+                          <i data-lucide="settings" style="width:14px;margin-right:6px"></i> Open Email Editor
+                       </button>
+                       <div style="margin-top:8px">
+                          <button class="btn" onclick="openEmailReportsModal()" style="width:100%;background:var(--bg-700);border:1px solid var(--border);color:white;justify-content:center">
+                             <i data-lucide="bar-chart-2" style="width:14px;margin-right:6px"></i> View Reports
+                          </button>
+                       </div>
                    </div>
                 </div>
              </div>
@@ -7306,6 +7311,117 @@
         console.error('❌ [EmailEditor] Frontend Error:', e);
         showToast('Lỗi lưu cấu hình: ' + e.toString(), 'error');
       }
+    }
+    // ===========================================
+    // EMAIL REPORTS SYSTEM (Phase 2)
+    // ===========================================
+    function openEmailReportsModal() {
+      if (!document.getElementById('modalEmailReports')) {
+        createEmailReportsModal();
+      }
+      document.getElementById('modalEmailReports').style.display = 'flex';
+      loadEmailReports();
+    }
+
+    function closeEmailReportsModal() {
+      document.getElementById('modalEmailReports').style.display = 'none';
+    }
+
+    async function loadEmailReports() {
+      const container = document.getElementById('reportListContainer');
+      container.innerHTML = '<div style="padding:20px;text-align:center">Loading data...</div>';
+
+      try {
+        const res = await callAPI('getEmailStats');
+        if (res.success) {
+          renderReportTable(res.campaigns);
+          updateReportQuickStats(res.campaigns);
+        } else {
+          container.innerHTML = 'Error loading reports.';
+        }
+      } catch (e) {
+        container.innerHTML = 'Error: ' + e.message;
+      }
+    }
+
+    function renderReportTable(campaigns) {
+      const container = document.getElementById('reportListContainer');
+      if (!campaigns || campaigns.length === 0) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:#666">No campaigns found.</div>';
+        return;
+      }
+
+      let html = `
+       <table style="width:100%;color:var(--text-primary);border-collapse:collapse;font-size:13px">
+          <thead>
+             <tr style="border-bottom:1px solid var(--border);text-align:left">
+                <th style="padding:12px;color:var(--text-muted)">Time</th>
+                <th style="padding:12px;color:var(--text-muted)">Subject</th>
+                <th style="padding:12px;color:var(--text-muted);text-align:center">Recipients</th>
+                <th style="padding:12px;color:var(--text-muted);text-align:center">Opened</th>
+                <th style="padding:12px;color:var(--text-muted);text-align:right">Open Rate</th>
+             </tr>
+          </thead>
+          <tbody>
+       `;
+
+      campaigns.forEach(c => {
+        let rateColor = '#666';
+        if (c.openRate > 50) rateColor = '#22c55e';
+        else if (c.openRate > 20) rateColor = '#eab308';
+
+        html += `
+             <tr style="border-bottom:1px solid #1f1f23">
+                <td style="padding:12px">${c.time.split(',')[0]}</td>
+                <td style="padding:12px;font-weight:500">${c.subject}</td>
+                <td style="padding:12px;text-align:center">${c.recipientCount}</td>
+                <td style="padding:12px;text-align:center">${c.openCount}</td>
+                <td style="padding:12px;text-align:right;font-weight:700;color:${rateColor}">${c.openRate}%</td>
+             </tr>
+          `;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function updateReportQuickStats(campaigns) {
+      // Optional: Calculate average open rate
+      let totalRate = 0;
+      let count = 0;
+      campaigns.forEach(c => {
+        if (c.recipientCount > 0) {
+          totalRate += parseFloat(c.openRate);
+          count++;
+        }
+      });
+      const avg = count ? (totalRate / count).toFixed(1) : 0;
+    }
+
+    function createEmailReportsModal() {
+      const html = `
+        <div id="modalEmailReports" class="modal-overlay-2" style="display:none;z-index:9999; justify-content:center; align-items:center; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7)">
+           <div class="report-card" style="width:900px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;padding:0;background:#121216;border:1px solid #27272a;box-shadow:0 20px 50px rgba(0,0,0,0.5);border-radius:12px">
+              
+              <!-- Header -->
+              <div style="padding:16px 24px;border-bottom:1px solid #27272a;display:flex;justify-content:space-between;align-items:center;background:#18181b">
+                 <h3 style="margin:0;color:white;font-size:16px"><i data-lucide="bar-chart-2" style="width:16px;vertical-align:middle;margin-right:8px"></i>Campaign Analytics</h3>
+                 <button onclick="closeEmailReportsModal()" style="background:none;border:none;color:#52525b;cursor:pointer"><i data-lucide="x"></i></button>
+              </div>
+
+              <!-- Body -->
+              <div style="flex:1;overflow-y:auto;padding:0">
+                 <div id="reportListContainer"></div>
+              </div>
+
+              <!-- Footer -->
+              <div style="padding:16px 24px;border-top:1px solid #27272a;background:#18181b;text-align:right">
+                 <button class="btn" onclick="closeEmailReportsModal()" style="background:transparent;border:1px solid #27272a">Close</button>
+              </div>
+           </div>
+        </div>
+        `;
+      document.body.insertAdjacentHTML('beforeend', html);
+      lucide.createIcons();
     }
   </script>
 </body>
