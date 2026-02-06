@@ -3339,8 +3339,20 @@
       // Load Email Configuration (Drive Folder, etc.)
       await loadEmailConfiguration();
 
-      // Initialize Quill Rich Text Editor
+      // Initialize Quill Rich Text Editor (Main)
       initEmailEditor();
+
+      // Initialize Quill for Reminder
+      if (document.getElementById('reminderEditor')) {
+        window.quillReminder = new Quill('#reminderEditor', {
+          theme: 'snow',
+          placeholder: 'Nội dung nhắc nhở...',
+          modules: { toolbar: [['bold', 'italic'], ['link', 'image']] }
+        });
+      }
+
+      // Load Reminder Settings
+      await loadAutoReminderSettings();
     }
 
     let quillEditor = null;
@@ -3601,34 +3613,75 @@
                   </div>
                </div>
                
-               <div class="form-group">
-                  <label class="form-label">Send to</label>
-                  <select id="emailFilter" class="form-input" style="background:var(--bg-900)">
-                     <option value="all">All Students</option>
-                     <option value="active">Active Students</option>
-                     <option value="pending">Pending Approval</option>
+               <div class="form-group" style="background:var(--bg-800); padding:16px; border-radius:8px; border:1px solid var(--border)">
+                  <label class="form-label" style="color:var(--brand-red)">1. Select Recipients</label>
+                  
+                  <select id="emailFilterType" class="form-input" style="background:var(--bg-900);margin-bottom:12px" onchange="handleFilterTypeChange()">
+                     <option value="all">📧 All Students (Default)</option>
+                     <option value="inactive">💤 Inactive Students (Ghost User)</option>
+                     <option value="course">🎓 Students by Course</option>
                   </select>
+                  
+                  <!-- Dynamic Config Area -->
+                  <div id="filterConfigArea" style="padding-left:12px; border-left:2px solid var(--border); display:none"></div>
                </div>
+
                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                   <div class="form-group" style="margin-bottom:0">
-                     <label class="form-label">Tên người gửi</label>
+                     <label class="form-label">Sender Name</label>
                      <input type="text" id="emailSenderName" class="form-input" placeholder="VD: AZ English Academy" value="AZ English Academy">
                   </div>
                   <div class="form-group" style="margin-bottom:0">
                      <label class="form-label">Subject</label>
-                     <input type="text" id="emailSubject" class="form-input" placeholder="e.g. Course Update: New Lesson Available">
+                     <input type="text" id="emailSubject" class="form-input" placeholder="Enter subject...">
                   </div>
                </div>
+               
                <div class="form-group" style="margin-top:16px">
-                  <label class="form-label">Nội dung email</label>
-                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px">Variable: <code>{{name}}</code> sẽ thay bằng tên người nhận. Có thể thêm ảnh, định dạng chữ.</div>
+                  <label class="form-label">Email Content</label>
+                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px">Variable: <code>{{name}}</code>, <code>{{days}}</code></div>
                   <div id="emailEditorContainer" style="background:var(--bg-900);border:1px solid var(--border);border-radius:8px;overflow:hidden">
                      <div id="emailEditor" style="height:200px;color:var(--text-primary)"></div>
                   </div>
                </div>
-               <button class="btn btn-red" onclick="handleSendBatchEmail()" id="btnSendMail" style="width:100%; justify-content:center">
-                  <i data-lucide="send" style="width:16px; margin-right:8px"></i> Send Campaign (<span id="selectedCount">0</span> recipients)
-               </button>
+               
+               <!-- Action Area -->
+               <div style="background:var(--bg-800); padding:16px; border-radius:8px; border:1px solid var(--border)">
+                   <label class="form-label" style="color:#22c55e">2. Schedule & Send</label>
+                   
+                   <div style="display:flex; gap:16px; margin-bottom:12px">
+                       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                          <input type="radio" name="sendMode" value="now" checked onchange="toggleSchedule(false)"> 
+                          <span>🚀 Send Now</span>
+                       </label>
+                       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                          <input type="radio" name="sendMode" value="schedule" onchange="toggleSchedule(true)"> 
+                          <span>📅 Schedule</span>
+                       </label>
+                   </div>
+                   
+                   <div id="scheduleOptions" style="display:none; margin-bottom:16px; padding:12px; background:var(--bg-900); border-radius:6px">
+                       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+                           <div>
+                              <label class="form-label" style="font-size:11px">Start Date & Time</label>
+                              <input type="datetime-local" id="scheduleTime" class="form-input">
+                           </div>
+                           <div>
+                              <label class="form-label" style="font-size:11px">Recurrence</label>
+                              <select id="scheduleRecurrence" class="form-input">
+                                  <option value="ONCE">One time only</option>
+                                  <option value="DAILY">Daily (Every day at this time)</option>
+                                  <option value="WEEKLY">Weekly (Every week)</option>
+                                  <option value="MONTHLY">Monthly</option>
+                              </select>
+                           </div>
+                       </div>
+                   </div>
+
+                   <button class="btn btn-red" onclick="handleSendCampaign()" id="btnAction" style="width:100%; justify-content:center">
+                      <i data-lucide="send" style="width:16px; margin-right:8px"></i> Execute Campaign
+                   </button>
+               </div>
             </div>
             
             <!-- Right: Recipient Preview -->
@@ -3694,68 +3747,8 @@
       `;
     }
 
-    async function loadRecipientPreview() {
-      const filterType = document.getElementById('emailFilter').value;
-      console.log('🔍 [EmailMkt] Loading recipient preview for:', filterType);
-
-      const container = document.getElementById('recipientPreviewList');
-      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</div>';
-
-      try {
-        const res = await callAPI('getRecipientPreview', { filterType });
-        console.log('✅ [EmailMkt] Recipients loaded:', res.total);
-
-        if (res.success) {
-          emailRecipients = res.recipients;
-          excludedEmails = []; // Reset exclusions
-          renderRecipientList(res.recipients);
-          document.getElementById('recipientCount').textContent = res.total;
-        }
-      } catch (e) {
-        console.error('❌ [EmailMkt] Error loading recipients:', e);
-        container.innerHTML = '<div style="color:#ef4444">Error loading recipients</div>';
-      }
-    }
-
-    function renderRecipientList(recipients) {
-      const container = document.getElementById('recipientPreviewList');
-      if (recipients.length === 0) {
-        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">No recipients found</div>';
-        return;
-      }
-
-      let html = '';
-      recipients.forEach((r, i) => {
-        html += `
-          <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--border)">
-            <input type="checkbox" id="recip_${i}" checked onchange="toggleRecipientExclusion('${r.email}', this.checked)" 
-                   style="width:16px;height:16px;cursor:pointer">
-            <div style="flex:1">
-              <div style="font-weight:500;color:var(--text-primary)">${r.name || 'Chưa có tên'}</div>
-              <div style="font-size:12px;color:var(--text-muted)">${r.email}</div>
-            </div>
-            <span class="status-badge status-${r.status === 'Active' ? 'active' : 'pending'}">${r.status}</span>
-          </div>`;
-      });
-      container.innerHTML = html;
-    }
-
-    function toggleRecipientExclusion(email, isIncluded) {
-      if (isIncluded) {
-        excludedEmails = excludedEmails.filter(e => e !== email);
-      } else {
-        if (!excludedEmails.includes(email)) {
-          excludedEmails.push(email);
-        }
-      }
-      // Update count
-      const remaining = emailRecipients.length - excludedEmails.length;
-      document.getElementById('selectedCount').textContent = remaining;
-      console.log('🔍 [EmailMkt] Excluded emails:', excludedEmails.length, '| Will send to:', remaining);
-    }
-
     function selectAllRecipients(selectAll) {
-      const checkboxes = document.querySelectorAll('#recipientPreviewList input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.recipient-checkbox');
       checkboxes.forEach(cb => {
         cb.checked = selectAll;
       });
