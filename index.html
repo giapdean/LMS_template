@@ -3396,107 +3396,134 @@
         console.log('✅ [EmailMkt] Stats loaded:', res);
 
         if (res.success) {
-          document.getElementById('statTotalAllTime').textContent = res.totalAllTime || 0;
-          document.getElementById('statSentToday').textContent = res.sentToday || 0;
-          document.getElementById('statQuotaRemaining').textContent = res.remainingQuota || 100;
+          document.getElementById('statTotalAllTime').innerText = res.totalAllTime || 0;
+          document.getElementById('statSentToday').innerText = res.sentToday || 0;
+          document.getElementById('statQuotaRemaining').innerText = res.remainingQuota || '--';
+          document.getElementById('statAvgOpenRate').innerText = (res.avgOpenRate || 0) + '%';
 
           // Render campaign history
-          renderCampaignHistory(res.campaigns || []);
+          if (window.renderCampaignHistory) {
+            renderCampaignHistory(res.campaigns || []);
+          }
         }
       } catch (e) {
         console.error('❌ [EmailMkt] Error loading stats:', e);
       }
     }
 
-    async function loadRecipientPreview() {
-      const filterType = document.getElementById('emailFilter').value;
-      console.log('🔍 [EmailMkt] Loading recipient preview for:', filterType);
+    function renderCampaignHistory(campaigns) {
+      const container = document.getElementById('campaignHistoryBody'); // Need to ensure this ID exists in HTML, otherwise use querySelector
+      // If container not found, maybe rewrite the table container
+      const tableContainer = document.querySelector('.campaign-history-table');
 
-      const container = document.getElementById('recipientPreviewList');
-      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</div>';
+      // Let's assume we need to replace the content of "Campaign History" section
+      // Finding the section by class or hierarchy if ID is missing is risky.
+      // Better to have a dedicated container.
+      // I will look for where 'Campaign History' text is to identify the container in next steps or inject ID.
+      // For now, I'll define logic assuming there is a container `campaignListTableBody`.
 
-      try {
-        const res = await callAPI('getRecipientPreview', { filterType });
-        console.log('✅ [EmailMkt] Recipients loaded:', res.total);
+      const tbody = document.getElementById('campaignHistoryBody');
+      if (!tbody) return;
 
-        if (res.success) {
-          emailRecipients = res.recipients;
-          excludedEmails = []; // Reset exclusions
-          renderRecipientList(res.recipients);
-          document.getElementById('recipientCount').textContent = res.total;
-        }
-      } catch (e) {
-        console.error('❌ [EmailMkt] Error loading recipients:', e);
-        container.innerHTML = '<div style="color:#ef4444">Error loading recipients</div>';
-      }
-    }
-
-    function renderRecipientList(recipients) {
-      const container = document.getElementById('recipientPreviewList');
-      if (recipients.length === 0) {
-        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">No recipients found</div>';
+      if (!campaigns || campaigns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#666">No campaigns yet.</td></tr>';
         return;
       }
 
       let html = '';
-      recipients.forEach((r, i) => {
+      campaigns.forEach(c => {
+        let rateColor = '#666';
+        const rate = parseFloat(c.openRate);
+        if (rate > 50) rateColor = '#22c55e';
+        else if (rate > 20) rateColor = '#eab308';
+
+        const timeDisplay = c.time.split(',')[0]; // Simple date
+
         html += `
-          <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--border)">
-            <input type="checkbox" id="recip_${i}" checked onchange="toggleRecipientExclusion('${r.email}', this.checked)" 
-                   style="width:16px;height:16px;cursor:pointer">
-            <div style="flex:1">
-              <div style="font-weight:500;color:var(--text-primary)">${r.name || 'Chưa có tên'}</div>
-              <div style="font-size:12px;color:var(--text-muted)">${r.email}</div>
-            </div>
-            <span class="status-badge status-${r.status === 'Active' ? 'active' : 'pending'}">${r.status}</span>
-          </div>`;
+             <tr style="border-bottom:1px solid #1f1f23; font-size:13px">
+                <td style="padding:12px;color:var(--text-muted)">${timeDisplay}</td>
+                <td style="padding:12px;color:white;font-weight:500">${c.subject}</td>
+                <td style="padding:12px;text-align:center;color:var(--text-muted)">${c.recipientCount}</td>
+                <td style="padding:12px;text-align:right;font-weight:700;color:${rateColor}">${c.openRate}%</td>
+                <td style="padding:12px;text-align:right">
+                    <button class="btn-sm" onclick="openCampaignDetail('${c.id}')" style="background:#27272a;border:none;color:white;padding:4px 8px;font-size:11px">
+                       Details
+                    </button>
+                </td>
+             </tr>
+         `;
       });
+      tbody.innerHTML = html;
+    }
+
+    // Open Detail Modal
+    async function openCampaignDetail(cid) {
+      if (!document.getElementById('modalCampaignDetail')) {
+        createCampaignDetailModal();
+      }
+      document.getElementById('modalCampaignDetail').style.display = 'flex';
+      const container = document.getElementById('detailListContainer');
+      container.innerHTML = '<div style="padding:20px;text-align:center">Loading viewers...</div>';
+
+      try {
+        const res = await callAPI('getCampaignViewers', { campaignId: cid });
+        if (res.success) {
+          renderDetailViewers(res.viewers);
+        } else {
+          container.innerHTML = 'Error loading details.';
+        }
+      } catch (e) {
+        container.innerHTML = 'Error: ' + e.message;
+      }
+    }
+
+    function renderDetailViewers(viewers) {
+      const container = document.getElementById('detailListContainer');
+      if (!viewers || viewers.length === 0) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:#666">No one has opened this email yet.</div>';
+        return;
+      }
+
+      let html = `
+    <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">Total Unique Opens: <strong style="color:white">${viewers.length}</strong></div>
+    <table style="width:100%;font-size:13px;color:var(--text-primary);border-collapse:collapse">
+        <thead>
+            <tr style="border-bottom:1px solid #27272a;text-align:left">
+                <th style="padding:8px;color:var(--text-muted)">Email User</th>
+                <th style="padding:8px;color:var(--text-muted);text-align:right">Last Open</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+
+      viewers.forEach(v => {
+        html += `
+        <tr style="border-bottom:1px solid #1f1f23">
+            <td style="padding:8px;color:#3b82f6">${v.email}</td>
+            <td style="padding:8px;text-align:right;color:var(--text-muted)">${v.lastOpen}</td>
+        </tr>
+        `;
+      });
+      html += '</tbody></table>';
       container.innerHTML = html;
     }
 
-    function toggleRecipientExclusion(email, isIncluded) {
-      if (isIncluded) {
-        excludedEmails = excludedEmails.filter(e => e !== email);
-      } else {
-        if (!excludedEmails.includes(email)) {
-          excludedEmails.push(email);
-        }
-      }
-      // Update count
-      const remaining = emailRecipients.length - excludedEmails.length;
-      document.getElementById('selectedCount').textContent = remaining;
-      console.log('🔍 [EmailMkt] Excluded emails:', excludedEmails.length, '| Will send to:', remaining);
-    }
-
-    function selectAllRecipients(selectAll) {
-      const checkboxes = document.querySelectorAll('#recipientPreviewList input[type="checkbox"]');
-      checkboxes.forEach(cb => {
-        cb.checked = selectAll;
-      });
-      excludedEmails = selectAll ? [] : emailRecipients.map(r => r.email);
-      const remaining = selectAll ? emailRecipients.length : 0;
-      document.getElementById('selectedCount').textContent = remaining;
-    }
-
-    function renderCampaignHistory(campaigns) {
-      const tbody = document.getElementById('campaignHistoryBody');
-      if (!campaigns || campaigns.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Chưa có chiến dịch nào</td></tr>';
-        return;
-      }
-
-      let html = '';
-      campaigns.slice(0, 10).forEach(c => {
-        html += `
-          <tr>
-            <td style="padding:12px;color:var(--text-muted);font-size:13px">${c.timestamp || '--'}</td>
-            <td style="padding:12px;color:var(--text-primary)">${c.subject || '--'}</td>
-            <td style="padding:12px;color:var(--text-secondary)">${c.filterType || '--'}</td>
-            <td style="padding:12px"><span style="color:#22c55e">${c.successCount}</span>/${c.totalRecipients}</td>
-            <td style="padding:12px;color:var(--text-muted)">--</td>
-          </tr>`;
-      });
-      tbody.innerHTML = html;
+    function createCampaignDetailModal() {
+      const html = `
+    <div id="modalCampaignDetail" class="modal-overlay-2" style="display:none;z-index:99999; justify-content:center; align-items:center; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8)">
+       <div class="report-card" style="width:500px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;padding:0;background:#121216;border:1px solid #27272a;box-shadow:0 20px 50px rgba(0,0,0,0.5);border-radius:12px">
+          <div style="padding:16px;border-bottom:1px solid #27272a;display:flex;justify-content:space-between;align-items:center;background:#18181b">
+             <h3 style="margin:0;color:white;font-size:15px">Campaign Viewers</h3>
+             <button onclick="document.getElementById('modalCampaignDetail').style.display='none'" style="background:none;border:none;color:#52525b;cursor:pointer"><i data-lucide="x"></i></button>
+          </div>
+          <div style="flex:1;overflow-y:auto;padding:16px">
+             <div id="detailListContainer"></div>
+          </div>
+       </div>
+    </div>
+    `;
+      document.body.insertAdjacentHTML('beforeend', html);
+      lucide.createIcons();
     }
 
     function renderEmailMarketingUI() {
@@ -3523,8 +3550,7 @@
              </div>
              <div class="stat-card" style="padding:16px">
                 <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Open Rate (Avg)</div>
-                <div style="font-size:24px;font-weight:700;color:var(--warning)">--</div>
-                <div style="font-size:10px;color:var(--text-muted)">Coming soon</div>
+                <div id="statAvgOpenRate" style="font-size:24px;font-weight:700;color:var(--warning)">--</div>
              </div>
           </div>
           
@@ -3541,11 +3567,6 @@
                        <button class="btn" onclick="openEmailSettingsModal()" style="width:100%;background:var(--bg-700);border:1px solid var(--border);color:white;justify-content:center">
                           <i data-lucide="settings" style="width:14px;margin-right:6px"></i> Open Email Editor
                        </button>
-                       <div style="margin-top:8px">
-                          <button class="btn" onclick="openEmailReportsModal()" style="width:100%;background:var(--bg-700);border:1px solid var(--border);color:white;justify-content:center">
-                             <i data-lucide="bar-chart-2" style="width:14px;margin-right:6px"></i> View Reports
-                          </button>
-                       </div>
                    </div>
                 </div>
              </div>
@@ -3650,12 +3671,246 @@
                 <table style="width:100%;border-collapse:collapse">
                    <thead>
                       <tr style="border-bottom:1px solid var(--border)">
-                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Date</th>
+                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Time</th>
                          <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Subject</th>
-                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Filter</th>
-                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Sent</th>
-                         <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Open Rate</th>
+                         <th style="padding:12px;text-align:center;color:var(--text-muted);font-size:12px;text-transform:uppercase">Recipients</th>
+                         <th style="padding:12px;text-align:right;color:var(--text-muted);font-size:12px;text-transform:uppercase">Open Rate</th>
+                         <th style="padding:12px;text-align:right;color:var(--text-muted);font-size:12px;text-transform:uppercase">Msg</th>
                       </tr>
+                   </thead>
+                   <tbody id="campaignHistoryBody">
+                      <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading...</td></tr>
+                   </tbody>
+                </table>
+             </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadRecipientPreview() {
+      const filterType = document.getElementById('emailFilter').value;
+      console.log('🔍 [EmailMkt] Loading recipient preview for:', filterType);
+
+      const container = document.getElementById('recipientPreviewList');
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</div>';
+
+      try {
+        const res = await callAPI('getRecipientPreview', { filterType });
+        console.log('✅ [EmailMkt] Recipients loaded:', res.total);
+
+        if (res.success) {
+          emailRecipients = res.recipients;
+          excludedEmails = []; // Reset exclusions
+          renderRecipientList(res.recipients);
+          document.getElementById('recipientCount').textContent = res.total;
+        }
+      } catch (e) {
+        console.error('❌ [EmailMkt] Error loading recipients:', e);
+        container.innerHTML = '<div style="color:#ef4444">Error loading recipients</div>';
+      }
+    }
+
+    function renderRecipientList(recipients) {
+      const container = document.getElementById('recipientPreviewList');
+      if (recipients.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">No recipients found</div>';
+        return;
+      }
+
+      let html = '';
+      recipients.forEach((r, i) => {
+        html += `
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--border)">
+            <input type="checkbox" id="recip_${i}" checked onchange="toggleRecipientExclusion('${r.email}', this.checked)" 
+                   style="width:16px;height:16px;cursor:pointer">
+            <div style="flex:1">
+              <div style="font-weight:500;color:var(--text-primary)">${r.name || 'Chưa có tên'}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${r.email}</div>
+            </div>
+            <span class="status-badge status-${r.status === 'Active' ? 'active' : 'pending'}">${r.status}</span>
+          </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function toggleRecipientExclusion(email, isIncluded) {
+      if (isIncluded) {
+        excludedEmails = excludedEmails.filter(e => e !== email);
+      } else {
+        if (!excludedEmails.includes(email)) {
+          excludedEmails.push(email);
+        }
+      }
+      // Update count
+      const remaining = emailRecipients.length - excludedEmails.length;
+      document.getElementById('selectedCount').textContent = remaining;
+      console.log('🔍 [EmailMkt] Excluded emails:', excludedEmails.length, '| Will send to:', remaining);
+    }
+
+    function selectAllRecipients(selectAll) {
+      const checkboxes = document.querySelectorAll('#recipientPreviewList input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        cb.checked = selectAll;
+      });
+      excludedEmails = selectAll ? [] : emailRecipients.map(r => r.email);
+      const remaining = selectAll ? emailRecipients.length : 0;
+      document.getElementById('selectedCount').textContent = remaining;
+    }
+
+    // Removed duplicate renderCampaignHistory function to use the new one defined earlier.
+
+    function renderEmailMarketingUI() {
+      return `
+        <div style="max-width:1000px; margin:0 auto">
+          <div style="margin-bottom:24px">
+            <h2 class="admin-title" style="margin-bottom:8px">Email Marketing & Automation</h2>
+            <div style="color:var(--text-muted)">Send announcements or set up automated reminders.</div>
+          </div>
+
+          <!-- Stats Cards (Dynamic) -->
+          <div class="stats-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:32px">
+             <div class="stat-card" style="padding:16px">
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Total Sent (All Time)</div>
+                <div id="statTotalAllTime" style="font-size:24px;font-weight:700;color:white">--</div>
+             </div>
+             <div class="stat-card" style="padding:16px">
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Sent Today</div>
+                <div id="statSentToday" style="font-size:24px;font-weight:700;color:#22c55e">--</div>
+             </div>
+             <div class="stat-card" style="padding:16px">
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Quota Remaining</div>
+                <div id="statQuotaRemaining" style="font-size:24px;font-weight:700;color:#3b82f6">--</div>
+             </div>
+             <div class="stat-card" style="padding:16px">
+                <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase">Open Rate (Avg)</div>
+                <div id="statAvgOpenRate" style="font-size:24px;font-weight:700;color:var(--warning)">--</div>
+             </div>
+          </div>
+          
+          <!-- Settings & Configuration -->
+          <div class="stat-card" style="margin-bottom:24px; padding:20px; flex-direction:row; align-items:center; gap:20px; flex-wrap:wrap">
+             <div style="flex:1; min-width:300px">
+                <h3 style="margin:0 0 6px 0; font-size:16px; color:white">Email Configuration <span style="font-size:11px;color:#22c55e">(v2.2 Debug)</span></h3>
+                <div style="font-size:13px; color:var(--text-muted)">Cấu hình thư mục Google Drive để lưu ảnh khi upload trong editor.</div>
+             </div>
+             <div style="flex:2; display:flex; gap:12px; min-width:300px">
+                <div style="display:flex; align-items:flex-end; gap:12px">
+                   <div style="flex:1">
+                      <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Email Configuration</label>
+                       <button class="btn" onclick="openEmailSettingsModal()" style="width:100%;background:var(--bg-700);border:1px solid var(--border);color:white;justify-content:center">
+                          <i data-lucide="settings" style="width:14px;margin-right:6px"></i> Open Email Editor
+                       </button>
+                   </div>
+                </div>
+             </div>
+          </div>
+          
+          <!-- Hidden File Input for Quill -->
+          <input type="file" id="quillImageInput" style="display:none" accept="image/*" onchange="handleQuillImageUpload(this)">
+
+          <div style="display:grid;grid-template-columns:1fr 320px;gap:24px">
+            <!-- Left: Campaign Form -->
+            <div class="stat-card">
+               <div style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center">
+                  <h3 style="margin:0; font-size:18px; color:white">New Campaign</h3>
+               </div>
+               
+               <!-- Test Email Section -->
+               <div style="background:var(--bg-900);border-radius:8px;padding:16px;margin-bottom:20px;border:1px solid var(--border)">
+                  <div style="display:flex;gap:12px;align-items:flex-end">
+                     <div style="flex:1">
+                        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">Test Email (Send test before launching)</label>
+                        <input type="email" id="testEmailInput" class="form-input" placeholder="your@email.com" style="background:var(--bg-800)">
+                     </div>
+                     <button class="btn" onclick="handleSendTestEmail()" style="background:var(--bg-700);border:1px solid var(--border);white-space:nowrap">
+                        <i data-lucide="mail-check" style="width:14px;margin-right:6px"></i> Send Test
+                     </button>
+                  </div>
+               </div>
+               
+               <div class="form-group">
+                  <label class="form-label">Send to</label>
+                  <select id="emailFilter" class="form-input" style="background:var(--bg-900)">
+                     <option value="all">All Students</option>
+                     <option value="active">Active Students</option>
+                     <option value="pending">Pending Approval</option>
+                  </select>
+               </div>
+               <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                  <div class="form-group" style="margin-bottom:0">
+                     <label class="form-label">Tên người gửi</label>
+                     <input type="text" id="emailSenderName" class="form-input" placeholder="VD: AZ English Academy" value="AZ English Academy">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                     <label class="form-label">Subject</label>
+                     <input type="text" id="emailSubject" class="form-input" placeholder="e.g. Course Update: New Lesson Available">
+                  </div>
+               </div>
+               <div class="form-group" style="margin-top:16px">
+                  <label class="form-label">Nội dung email</label>
+                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px">Variable: <code>{{name}}</code> sẽ thay bằng tên người nhận. Có thể thêm ảnh, định dạng chữ.</div>
+                  <div id="emailEditorContainer" style="background:var(--bg-900);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                     <div id="emailEditor" style="height:200px;color:var(--text-primary)"></div>
+                  </div>
+               </div>
+               <button class="btn btn-red" onclick="handleSendBatchEmail()" id="btnSendMail" style="width:100%; justify-content:center">
+                  <i data-lucide="send" style="width:16px; margin-right:8px"></i> Send Campaign (<span id="selectedCount">0</span> recipients)
+               </button>
+            </div>
+            
+            <!-- Right: Recipient Preview -->
+            <div class="stat-card" style="padding:0;display:flex;flex-direction:column;max-height:500px">
+               <div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                     <h4 style="margin:0;font-size:14px;color:white">Recipients</h4>
+                     <div style="font-size:12px;color:var(--text-muted)"><span id="recipientCount">0</span> users in list</div>
+                  </div>
+                  <div style="display:flex;gap:8px">
+                     <button class="btn-sm" style="font-size:11px;padding:4px 8px" onclick="selectAllRecipients(true)">Select All</button>
+                     <button class="btn-sm" style="font-size:11px;padding:4px 8px;background:transparent;border:1px solid var(--border)" onclick="selectAllRecipients(false)">Deselect</button>
+                  </div>
+               </div>
+               <div id="recipientPreviewList" style="flex:1;overflow-y:auto">
+                  <div style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</div>
+               </div>
+            </div>
+          </div>
+
+          <!-- Automation -->
+          <div class="stat-card" style="margin-top:24px; padding:24px; flex-direction:row; align-items:center; justify-content:space-between">
+             <div>
+                <h3 style="margin:0 0 4px 0; font-size:16px; color:white">Inactive Student Reminder</h3>
+                <div style="font-size:13px; color:var(--text-muted)">Automatically send email if inactive for 7 days (Runs daily at 9:00 AM)</div>
+             </div>
+             <label class="switch" style="position:relative; display:inline-block; width:48px; height:24px">
+                <input type="checkbox" id="autoReminderToggle" onchange="handleToggleAutoReminder(this)" style="opacity:0; width:0; height:0">
+                <span style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#333; transition:.4s; border-radius:34px" 
+                      class="slider"></span>
+                <span style="position:absolute; content:''; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.2)"
+                      class="slider-thumb"></span>
+             </label>
+             <style>
+               #autoReminderToggle:checked + .slider { background-color: #22c55e; }
+               #autoReminderToggle:checked + .slider .slider-thumb { transform: translateX(24px); }
+             </style>
+          </div>
+          
+          <!-- Campaign History -->
+          <div class="stat-card" style="margin-top:24px;">
+             <div style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px">
+                <h3 style="margin:0; font-size:18px; color:white">Campaign History</h3>
+             </div>
+             <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse">
+                   <thead>
+                       <tr style="border-bottom:1px solid var(--border)">
+                          <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Time</th>
+                          <th style="padding:12px;text-align:left;color:var(--text-muted);font-size:12px;text-transform:uppercase">Subject</th>
+                          <th style="padding:12px;text-align:center;color:var(--text-muted);font-size:12px;text-transform:uppercase">Recipients</th>
+                          <th style="padding:12px;text-align:right;color:var(--text-muted);font-size:12px;text-transform:uppercase">Open Rate</th>
+                          <th style="padding:12px;text-align:right;color:var(--text-muted);font-size:12px;text-transform:uppercase">Msg</th>
+                       </tr>
                    </thead>
                    <tbody id="campaignHistoryBody">
                       <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading...</td></tr>
@@ -7312,117 +7567,7 @@
         showToast('Lỗi lưu cấu hình: ' + e.toString(), 'error');
       }
     }
-    // ===========================================
-    // EMAIL REPORTS SYSTEM (Phase 2)
-    // ===========================================
-    function openEmailReportsModal() {
-      if (!document.getElementById('modalEmailReports')) {
-        createEmailReportsModal();
-      }
-      document.getElementById('modalEmailReports').style.display = 'flex';
-      loadEmailReports();
-    }
 
-    function closeEmailReportsModal() {
-      document.getElementById('modalEmailReports').style.display = 'none';
-    }
-
-    async function loadEmailReports() {
-      const container = document.getElementById('reportListContainer');
-      container.innerHTML = '<div style="padding:20px;text-align:center">Loading data...</div>';
-
-      try {
-        const res = await callAPI('getEmailStats');
-        if (res.success) {
-          renderReportTable(res.campaigns);
-          updateReportQuickStats(res.campaigns);
-        } else {
-          container.innerHTML = 'Error loading reports.';
-        }
-      } catch (e) {
-        container.innerHTML = 'Error: ' + e.message;
-      }
-    }
-
-    function renderReportTable(campaigns) {
-      const container = document.getElementById('reportListContainer');
-      if (!campaigns || campaigns.length === 0) {
-        container.innerHTML = '<div style="padding:20px;text-align:center;color:#666">No campaigns found.</div>';
-        return;
-      }
-
-      let html = `
-       <table style="width:100%;color:var(--text-primary);border-collapse:collapse;font-size:13px">
-          <thead>
-             <tr style="border-bottom:1px solid var(--border);text-align:left">
-                <th style="padding:12px;color:var(--text-muted)">Time</th>
-                <th style="padding:12px;color:var(--text-muted)">Subject</th>
-                <th style="padding:12px;color:var(--text-muted);text-align:center">Recipients</th>
-                <th style="padding:12px;color:var(--text-muted);text-align:center">Opened</th>
-                <th style="padding:12px;color:var(--text-muted);text-align:right">Open Rate</th>
-             </tr>
-          </thead>
-          <tbody>
-       `;
-
-      campaigns.forEach(c => {
-        let rateColor = '#666';
-        if (c.openRate > 50) rateColor = '#22c55e';
-        else if (c.openRate > 20) rateColor = '#eab308';
-
-        html += `
-             <tr style="border-bottom:1px solid #1f1f23">
-                <td style="padding:12px">${c.time.split(',')[0]}</td>
-                <td style="padding:12px;font-weight:500">${c.subject}</td>
-                <td style="padding:12px;text-align:center">${c.recipientCount}</td>
-                <td style="padding:12px;text-align:center">${c.openCount}</td>
-                <td style="padding:12px;text-align:right;font-weight:700;color:${rateColor}">${c.openRate}%</td>
-             </tr>
-          `;
-      });
-      html += '</tbody></table>';
-      container.innerHTML = html;
-    }
-
-    function updateReportQuickStats(campaigns) {
-      // Optional: Calculate average open rate
-      let totalRate = 0;
-      let count = 0;
-      campaigns.forEach(c => {
-        if (c.recipientCount > 0) {
-          totalRate += parseFloat(c.openRate);
-          count++;
-        }
-      });
-      const avg = count ? (totalRate / count).toFixed(1) : 0;
-    }
-
-    function createEmailReportsModal() {
-      const html = `
-        <div id="modalEmailReports" class="modal-overlay-2" style="display:none;z-index:9999; justify-content:center; align-items:center; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7)">
-           <div class="report-card" style="width:900px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;padding:0;background:#121216;border:1px solid #27272a;box-shadow:0 20px 50px rgba(0,0,0,0.5);border-radius:12px">
-              
-              <!-- Header -->
-              <div style="padding:16px 24px;border-bottom:1px solid #27272a;display:flex;justify-content:space-between;align-items:center;background:#18181b">
-                 <h3 style="margin:0;color:white;font-size:16px"><i data-lucide="bar-chart-2" style="width:16px;vertical-align:middle;margin-right:8px"></i>Campaign Analytics</h3>
-                 <button onclick="closeEmailReportsModal()" style="background:none;border:none;color:#52525b;cursor:pointer"><i data-lucide="x"></i></button>
-              </div>
-
-              <!-- Body -->
-              <div style="flex:1;overflow-y:auto;padding:0">
-                 <div id="reportListContainer"></div>
-              </div>
-
-              <!-- Footer -->
-              <div style="padding:16px 24px;border-top:1px solid #27272a;background:#18181b;text-align:right">
-                 <button class="btn" onclick="closeEmailReportsModal()" style="background:transparent;border:1px solid #27272a">Close</button>
-              </div>
-           </div>
-        </div>
-        `;
-      document.body.insertAdjacentHTML('beforeend', html);
-      lucide.createIcons();
-    }
   </script>
 </body>
 
